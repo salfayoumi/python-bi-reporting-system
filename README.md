@@ -191,7 +191,7 @@ Python-BI-Reporting-System/
 Clone the repository:
 
 ```bash
-git clone https://github.com/<your-username>/<repository-name>.git
+git clone https://github.com/salfayoumi/python-bi-reporting-system.git
 ```
 
 Install the required packages:
@@ -200,7 +200,7 @@ Install the required packages:
 pip install -r requirements.txt
 ```
 
-Generate the synthetic dataset (only once):
+(Optional) Regenerate the synthetic CRM dataset:
 
 ```bash
 python data/generate_data.py
