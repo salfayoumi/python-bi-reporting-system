@@ -5,6 +5,10 @@ Main entry point for the Python BI Reporting and Decision Support Module.
 
 Run:
     python main.py
+    python main.py --region Bursa
+    python main.py --year 2024
+    python main.py --segment SMB
+    python main.py --product "CRM Enterprise"
 
 Outputs:
     reports/dashboard.html
@@ -12,6 +16,8 @@ Outputs:
     reports/charts/*.png
     reports/charts/*.html
 """
+
+import argparse
 
 from modules.decision_support import analyze, format_report
 from modules.excel_exporter import generate_excel_report
@@ -26,12 +32,90 @@ SEPARATOR_WIDTH = 55
 FORECAST_MONTHS = 3
 
 
+def parse_arguments() -> argparse.Namespace:
+    """Parse optional command-line filters."""
+
+    parser = argparse.ArgumentParser(
+        description=(
+            "Generate filtered BI reports from the CRM datasets."
+        ),
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
+    parser.add_argument(
+        "--region",
+        type=str,
+        help=(
+            "Analyze one region using a case-insensitive exact match, "
+            "for example: --region Bursa"
+        ),
+    )
+
+    parser.add_argument(
+        "--year",
+        type=int,
+        help=(
+            "Analyze orders from one calendar year, "
+            "for example: --year 2024"
+        ),
+    )
+
+    parser.add_argument(
+        "--segment",
+        type=str,
+        help=(
+            "Analyze one customer segment, "
+            "for example: --segment SMB"
+        ),
+    )
+
+    parser.add_argument(
+        "--product",
+        type=str,
+        help=(
+            "Analyze one product, for example: "
+            '--product "CRM Enterprise"'
+        ),
+    )
+
+    return parser.parse_args()
+
+
 def print_header() -> None:
     """Print the application header."""
 
     print("=" * SEPARATOR_WIDTH)
     print("  Python BI Reporting & Decision Support Module")
     print("=" * SEPARATOR_WIDTH)
+
+
+def print_filter_summary(
+    filters: dict,
+    total_orders: int,
+    total_customers: int,
+) -> None:
+    """Print active CLI filters and resulting dataset size."""
+
+    print("\n🔎 Analysis Scope")
+    print("-" * SEPARATOR_WIDTH)
+
+    if filters:
+        for name, value in filters.items():
+            print(
+                f"   {name.replace('_', ' ').title():18}: "
+                f"{value}"
+            )
+    else:
+        print("   Filters           : None — full dataset")
+
+    print(
+        f"   Matching Orders   : "
+        f"{total_orders:,}"
+    )
+    print(
+        f"   Matching Customers: "
+        f"{total_customers:,}"
+    )
 
 
 def print_kpi_summary(kpis: dict) -> None:
@@ -162,20 +246,45 @@ def print_decision_support_reports(
 def main() -> None:
     """Run the complete BI reporting pipeline."""
 
+    args = parse_arguments()
+
     print_header()
 
-    # Step 1 — Data loading, validation, and KPI calculation
+    # Step 1 — Data loading, validation, filtering, and KPI calculation
     print("\n📂 Loading and validating datasets...")
 
-    kpis = compute_all_kpis()
+    try:
+        kpis = compute_all_kpis(
+            region=args.region,
+            year=args.year,
+            segment=args.segment,
+            product=args.product,
+        )
+    except ValueError as error:
+        print(f"\n❌ Unable to continue: {error}")
+        raise SystemExit(1) from error
 
     print("\n✅ Data loading and validation completed.")
+
+    print_filter_summary(
+        kpis["filters"],
+        kpis["meta"]["total_orders"],
+        kpis["meta"]["total_customers"],
+    )
+
     print_kpi_summary(kpis)
+
+    filtered_orders = kpis["_data"]["orders"]
+    filtered_customers = kpis["_data"]["customers"]
 
     # Step 2 — Customer-segment analysis
     print("\n👥 Computing customer segment analysis...")
 
-    segment_analysis = compute_segment_analysis()
+    segment_analysis = compute_segment_analysis(
+        orders=filtered_orders,
+        customers=filtered_customers,
+    )
+
     print_segment_summary(segment_analysis)
 
     # Step 3 — Revenue forecasting
@@ -184,10 +293,17 @@ def main() -> None:
         "revenue forecast..."
     )
 
-    revenue_forecast = compute_revenue_forecast(
-        kpis,
-        forecast_months=FORECAST_MONTHS,
-    )
+    try:
+        revenue_forecast = compute_revenue_forecast(
+            kpis,
+            forecast_months=FORECAST_MONTHS,
+        )
+    except ValueError as error:
+        print(
+            "\n❌ Revenue forecasting could not be completed "
+            f"for the selected filters: {error}"
+        )
+        raise SystemExit(1) from error
 
     print_forecast_summary(revenue_forecast)
 

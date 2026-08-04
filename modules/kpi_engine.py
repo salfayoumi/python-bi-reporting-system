@@ -73,6 +73,140 @@ def load_data(
     return orders, customers
 
 
+def _filter_text_column(
+    dataframe: pd.DataFrame,
+    column: str,
+    value: str | None,
+) -> pd.DataFrame:
+    """Filter a text column using a case-insensitive exact match."""
+
+    if value is None:
+        return dataframe
+
+    normalized_value = value.strip().casefold()
+
+    return dataframe[
+        dataframe[column]
+        .astype(str)
+        .str.strip()
+        .str.casefold()
+        == normalized_value
+    ]
+
+
+def apply_filters(
+    orders: pd.DataFrame,
+    customers: pd.DataFrame,
+    *,
+    region: str | None = None,
+    year: int | None = None,
+    segment: str | None = None,
+    product: str | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
+    """
+    Apply optional filters to the CRM datasets.
+
+    Filters use AND logic. Customers are restricted to those referenced
+    by the filtered orders so downstream analyses remain consistent.
+    """
+
+    filtered_orders = orders.copy()
+    filtered_customers = customers.copy()
+
+    requested_filters = {
+        "region": region,
+        "year": year,
+        "segment": segment,
+        "product": product,
+    }
+
+    filtered_orders = _filter_text_column(
+        filtered_orders,
+        "region",
+        region,
+    )
+
+    if region is not None:
+        filtered_customers = _filter_text_column(
+            filtered_customers,
+            "region",
+            region,
+        )
+
+    filtered_orders = _filter_text_column(
+        filtered_orders,
+        "segment",
+        segment,
+    )
+
+    if segment is not None:
+        filtered_customers = _filter_text_column(
+            filtered_customers,
+            "segment",
+            segment,
+        )
+
+    filtered_orders = _filter_text_column(
+        filtered_orders,
+        "product",
+        product,
+    )
+
+    if year is not None:
+        order_years = pd.to_datetime(
+            filtered_orders["order_date"],
+            errors="coerce",
+        ).dt.year
+
+        filtered_orders = filtered_orders[
+            order_years == year
+        ]
+
+    if filtered_orders.empty:
+        selected_filters = ", ".join(
+            f"{key}={value}"
+            for key, value in requested_filters.items()
+            if value is not None
+        )
+
+        raise ValueError(
+            "No orders matched the selected filters"
+            + (
+                f": {selected_filters}."
+                if selected_filters
+                else "."
+            )
+        )
+
+    filtered_customer_ids = set(
+        filtered_orders["customer_id"]
+        .dropna()
+    )
+
+    filtered_customers = filtered_customers[
+        filtered_customers["customer_id"]
+        .isin(filtered_customer_ids)
+    ]
+
+    if filtered_customers.empty:
+        raise ValueError(
+            "The selected filters produced orders but no matching "
+            "customer records."
+        )
+
+    applied_filters = {
+        key: value
+        for key, value in requested_filters.items()
+        if value is not None
+    }
+
+    return (
+        filtered_orders.reset_index(drop=True),
+        filtered_customers.reset_index(drop=True),
+        applied_filters,
+    )
+
+
 def _missing_required_columns(
     dataframe: pd.DataFrame,
     required_columns: set[str],
@@ -783,56 +917,93 @@ def trend_analysis(
 
 # ── Master Runner ─────────────────────────────────────────────────────────────
 def compute_all_kpis(
+    orders: pd.DataFrame | None = None,
+    customers: pd.DataFrame | None = None,
+    *,
     orders_path: str | Path = DEFAULT_ORDERS_PATH,
     customers_path: str | Path = DEFAULT_CUSTOMERS_PATH,
+    region: str | None = None,
+    year: int | None = None,
+    segment: str | None = None,
+    product: str | None = None,
+    print_validation_report: bool = True,
 ) -> dict:
-    """Load the datasets and calculate all KPI categories."""
+    """
+    Calculate all KPI categories from full or filtered CRM data.
 
-    orders, customers = load_data(
-        orders_path,
-        customers_path,
-    )
+    DataFrames may be supplied directly. If omitted, the datasets are
+    loaded from disk. Optional filters are applied before KPI calculation.
+    """
+
+    if orders is None and customers is None:
+        resolved_orders, resolved_customers = load_data(
+            orders_path,
+            customers_path,
+        )
+    elif orders is None or customers is None:
+        raise ValueError(
+            "orders and customers must either both be provided "
+            "or both be omitted."
+        )
+    else:
+        resolved_orders = orders.copy()
+        resolved_customers = customers.copy()
 
     validation_report = validate_data(
-        orders,
-        customers,
+        resolved_orders,
+        resolved_customers,
+        print_report=print_validation_report,
+    )
+
+    (
+        filtered_orders,
+        filtered_customers,
+        applied_filters,
+    ) = apply_filters(
+        resolved_orders,
+        resolved_customers,
+        region=region,
+        year=year,
+        segment=segment,
+        product=product,
     )
 
     minimum_date = (
-        orders["order_date"]
+        filtered_orders["order_date"]
         .min()
         .date()
     )
 
     maximum_date = (
-        orders["order_date"]
+        filtered_orders["order_date"]
         .max()
         .date()
     )
 
     return {
         "revenue": revenue_kpis(
-            orders
+            filtered_orders
         ),
         "sales": sales_kpis(
-            orders
+            filtered_orders
         ),
         "products": product_kpis(
-            orders
+            filtered_orders
         ),
         "regions": regional_kpis(
-            orders
+            filtered_orders
         ),
         "trends": trend_analysis(
-            orders
+            filtered_orders
         ),
         "validation": validation_report,
+        "filters": applied_filters,
         "meta": {
             "total_customers": len(
-                customers
+                filtered_customers
             ),
             "total_orders": len(
-                orders
+                filtered_orders
             ),
             "date_range": (
                 f"{minimum_date} "
@@ -844,15 +1015,25 @@ def compute_all_kpis(
                 )
             ),
         },
+        "_data": {
+            "orders": filtered_orders,
+            "customers": filtered_customers,
+        },
     }
 
 
 if __name__ == "__main__":
     kpis = compute_all_kpis()
 
+    printable_kpis = {
+        key: value
+        for key, value in kpis.items()
+        if key != "_data"
+    }
+
     print(
         json.dumps(
-            kpis,
+            printable_kpis,
             indent=2,
             default=str,
         )

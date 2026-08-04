@@ -190,6 +190,26 @@ def _get_translator(
     return normalized_language, translator
 
 
+def _resolve_orders_data(
+    orders: pd.DataFrame | None = None,
+    orders_path: str | Path = DEFAULT_ORDERS_PATH,
+) -> pd.DataFrame:
+    """
+    Return supplied order data or load it from CSV.
+
+    Passing a DataFrame allows CLI filters to affect every chart
+    consistently without forcing chart functions to reload raw data.
+    """
+
+    if orders is not None:
+        return orders.copy()
+
+    return pd.read_csv(
+        orders_path,
+        parse_dates=["order_date"],
+    )
+
+
 def get_chart_path(
     filename: str,
     language: str,
@@ -510,6 +530,8 @@ def plot_regional_revenue(
 
 # ── 4. Order Status Breakdown ─────────────────────────────────────────────────
 def plot_status_breakdown(
+    orders: pd.DataFrame | None = None,
+    *,
     orders_path: str | Path = DEFAULT_ORDERS_PATH,
     language: str = DEFAULT_LANGUAGE,
     save: bool = True,
@@ -520,12 +542,13 @@ def plot_status_breakdown(
         language
     )
 
-    orders = pd.read_csv(
-        orders_path
+    resolved_orders = _resolve_orders_data(
+        orders,
+        orders_path,
     )
 
     counts = (
-        orders["status"]
+        resolved_orders["status"]
         .value_counts()
         .reset_index()
     )
@@ -606,6 +629,8 @@ def plot_status_breakdown(
 
 # ── 5. Account Manager Performance ────────────────────────────────────────────
 def plot_am_performance(
+    orders: pd.DataFrame | None = None,
+    *,
     orders_path: str | Path = DEFAULT_ORDERS_PATH,
     language: str = DEFAULT_LANGUAGE,
     save: bool = True,
@@ -616,12 +641,13 @@ def plot_am_performance(
         language
     )
 
-    orders = pd.read_csv(
-        orders_path
+    resolved_orders = _resolve_orders_data(
+        orders,
+        orders_path,
     )
 
-    won = orders[
-        orders["status"] == "Won"
+    won = resolved_orders[
+        resolved_orders["status"] == "Won"
     ]
 
     am_stats = (
@@ -1285,6 +1311,15 @@ def generate_all_charts(
         )
     )
 
+    filtered_orders = (
+        kpis.get(
+            "_data",
+            {},
+        ).get(
+            "orders"
+        )
+    )
+
     paths = {}
 
     paths["monthly_trend"] = (
@@ -1322,12 +1357,14 @@ def generate_all_charts(
 
     paths["status_breakdown"] = (
         plot_status_breakdown(
+            orders=filtered_orders,
             language=language,
         )
     )
 
     paths["am_performance"] = (
         plot_am_performance(
+            orders=filtered_orders,
             language=language,
         )
     )

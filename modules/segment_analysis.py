@@ -3,6 +3,9 @@ modules/segment_analysis.py
 
 Calculates customer-segment performance metrics from the CRM
 customers and orders datasets.
+
+The module can either load data from CSV files or receive
+pre-filtered DataFrames from the main application.
 """
 
 from pathlib import Path
@@ -61,6 +64,37 @@ def _calculate_percentage(
         numerator
         / denominator
         * 100
+    )
+
+
+def _resolve_segment_data(
+    orders: pd.DataFrame | None,
+    customers: pd.DataFrame | None,
+    orders_path: str | Path,
+    customers_path: str | Path,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Return supplied DataFrames or load both datasets from disk.
+
+    Both DataFrames must be supplied together. This prevents the
+    analysis from accidentally combining filtered and unfiltered data.
+    """
+
+    if orders is None and customers is None:
+        return load_segment_data(
+            orders_path,
+            customers_path,
+        )
+
+    if orders is None or customers is None:
+        raise ValueError(
+            "orders and customers must either both be provided "
+            "or both be omitted."
+        )
+
+    return (
+        orders.copy(),
+        customers.copy(),
     )
 
 
@@ -338,20 +372,33 @@ def summarize_segment_performance(
 
 
 def compute_segment_analysis(
+    orders: pd.DataFrame | None = None,
+    customers: pd.DataFrame | None = None,
+    *,
     orders_path: str | Path = DEFAULT_ORDERS_PATH,
     customers_path: str | Path = DEFAULT_CUSTOMERS_PATH,
 ) -> dict:
-    """Load the datasets and run the complete segment analysis."""
+    """
+    Run the complete customer-segment analysis.
 
-    orders, customers = load_segment_data(
-        orders_path,
-        customers_path,
+    Pre-filtered orders and customers DataFrames may be supplied by
+    the main application. If they are omitted, the datasets are loaded
+    from the default CSV files.
+    """
+
+    resolved_orders, resolved_customers = (
+        _resolve_segment_data(
+            orders,
+            customers,
+            orders_path,
+            customers_path,
+        )
     )
 
     performance = (
         calculate_segment_performance(
-            orders,
-            customers,
+            resolved_orders,
+            resolved_customers,
         )
     )
 
