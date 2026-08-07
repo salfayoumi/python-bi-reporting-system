@@ -1,0 +1,2995 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta
+  name="viewport"
+  content="width=device-width, initial-scale=1.0"
+/>
+<title>BI Reporting &amp; Decision Support Dashboard</title>
+
+<style>
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  :root {
+    --blue: #2D6A9F;
+    --blue-dark: #173F63;
+    --blue-light: #EBF3FA;
+    --green: #48A999;
+    --orange: #E8855A;
+    --yellow: #AAB4C3;
+    --purple: #60758A;
+    --background: #F4F7FB;
+    --surface: #FFFFFF;
+    --border: #E2E8F0;
+    --text: #1A2233;
+    --muted: #6B7A99;
+    --faint: #98A4B8;
+    --radius: 12px;
+    --shadow: 0 5px 18px rgba(23, 63, 99, 0.08);
+    --sidebar-width: 230px;
+  }
+
+  body {
+    font-family:
+      "Segoe UI",
+      system-ui,
+      -apple-system,
+      BlinkMacSystemFont,
+      sans-serif;
+    background: var(--background);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  button {
+    font: inherit;
+  }
+
+  .language-content {
+    min-height: 100vh;
+    display: flex;
+  }
+
+  .language-content[hidden] {
+    display: none;
+  }
+
+  .sidebar {
+    width: var(--sidebar-width);
+    min-height: 100vh;
+    background:
+      linear-gradient(
+        180deg,
+        var(--blue-dark) 0%,
+        #102F4B 100%
+      );
+    color: white;
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 100;
+  }
+
+  .sidebar-brand {
+    padding: 25px 21px 21px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .brand-title {
+    font-size: 1.03rem;
+    font-weight: 750;
+  }
+
+  .brand-subtitle {
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.52);
+    margin-top: 4px;
+  }
+
+  .sidebar-nav {
+    padding: 14px 0;
+    flex: 1;
+  }
+
+  .nav-section {
+    padding: 12px 18px 6px;
+    color: rgba(255, 255, 255, 0.34);
+    font-size: 0.64rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.11em;
+  }
+
+  .nav-item {
+    width: 100%;
+    border: 0;
+    border-left: 3px solid transparent;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.72);
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 11px 18px;
+    cursor: pointer;
+    text-align: left;
+    transition:
+      background 0.15s ease,
+      color 0.15s ease,
+      border-color 0.15s ease;
+  }
+
+  .nav-item:hover {
+    color: white;
+    background: rgba(255, 255, 255, 0.07);
+  }
+
+  .nav-item.active {
+    color: white;
+    background: rgba(255, 255, 255, 0.12);
+    border-left-color: var(--green);
+  }
+
+  .nav-icon {
+    width: 22px;
+    text-align: center;
+  }
+
+  .sidebar-footer {
+    padding: 17px 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.36);
+    font-size: 0.7rem;
+  }
+
+  .app-main {
+    margin-left: var(--sidebar-width);
+    min-height: 100vh;
+    width: calc(100% - var(--sidebar-width));
+    display: flex;
+    flex-direction: column;
+  }
+
+  .topbar {
+    min-height: 68px;
+    padding: 10px 28px;
+    background: rgba(255, 255, 255, 0.96);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    backdrop-filter: blur(12px);
+  }
+
+  .topbar-title {
+    font-size: 1rem;
+    font-weight: 750;
+  }
+
+  .topbar-subtitle {
+    font-size: 0.76rem;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .period-badge {
+    background: var(--blue-light);
+    color: var(--blue);
+    border-radius: 20px;
+    padding: 6px 12px;
+    font-size: 0.72rem;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    white-space: nowrap;
+  }
+
+  .language-switcher {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    border-radius: 9px;
+  }
+
+  .language-button {
+    border: none;
+    background: transparent;
+    color: var(--blue);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .language-button:hover {
+    background: var(--blue-light);
+  }
+
+  .language-button.active {
+    color: white;
+    background: var(--blue);
+  }
+
+  .page-container {
+    width: 100%;
+    max-width: 1460px;
+    margin: 0 auto;
+    padding: 28px;
+    flex: 1;
+  }
+
+  .page {
+    display: block;
+  }
+
+  .page[hidden] {
+    display: none;
+  }
+
+  .page-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+
+  .page-heading h1 {
+    font-size: 1.52rem;
+    font-weight: 760;
+  }
+
+  .page-heading p {
+    color: var(--muted);
+    font-size: 0.84rem;
+    margin-top: 5px;
+    line-height: 1.5;
+  }
+
+  .dashboard-section {
+    margin-bottom: 27px;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .section-header h2 {
+    color: var(--blue);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 780;
+  }
+
+  .section-header p {
+    color: var(--muted);
+    font-size: 0.78rem;
+    margin-top: 4px;
+  }
+
+  .kpi-grid {
+    display: grid;
+    grid-template-columns:
+      repeat(auto-fit, minmax(175px, 1fr));
+    gap: 16px;
+  }
+
+  .kpi-card {
+    position: relative;
+    overflow: hidden;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    box-shadow: var(--shadow);
+    min-height: 138px;
+    transition:
+      transform 0.18s ease,
+      box-shadow 0.18s ease,
+      border-color 0.18s ease;
+  }
+
+  .kpi-label {
+    font-size: 0.67rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+  }
+
+  .kpi-value {
+    font-size: 2.15rem;
+    line-height: 1.05;
+    font-weight: 760;
+    margin: 10px 0 5px;
+  }
+
+  .kpi-sub {
+    color: var(--faint);
+    font-size: 0.69rem;
+    line-height: 1.4;
+    min-height: 18px;
+  }
+
+  .kpi-bar {
+    height: 4px;
+    border-radius: 99px;
+    background: #EDF1F6;
+    margin-top: 12px;
+    overflow: hidden;
+  }
+
+  .kpi-bar-fill {
+    height: 100%;
+    border-radius: inherit;
+  }
+
+  .summary-strip {
+    display: grid;
+    grid-template-columns:
+      repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+
+  .summary-item {
+    min-height: 78px;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 15px 16px;
+    background: var(--surface);
+  }
+
+  .summary-icon {
+    width: 30px;
+    height: 30px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    border-radius: 9px;
+    background: var(--background);
+    font-size: 0.95rem;
+  }
+
+  .summary-label {
+    color: var(--muted);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .summary-value {
+    font-size: 0.94rem;
+    font-weight: 720;
+    margin-top: 3px;
+  }
+
+  .chart-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+  }
+
+  .chart-card {
+    min-width: 0;
+    background: var(--surface);
+    border: 1px solid #DCE4ED;
+    border-radius: var(--radius);
+    box-shadow: 0 8px 22px rgba(23, 63, 99, 0.07);
+    overflow: hidden;
+    transition:
+      transform 0.18s ease,
+      box-shadow 0.18s ease;
+  }
+
+  .chart-wide {
+    grid-column: 1 / -1;
+  }
+
+  .chart-card h3 {
+    font-size: 0.9rem;
+    font-weight: 730;
+  }
+
+  .chart-card iframe {
+    width: 100%;
+    display: block;
+    border: none;
+    background: white;
+  }
+
+  .image-wrap {
+    padding: 8px 16px 17px;
+  }
+
+  .chart-card img {
+    width: 100%;
+    display: block;
+    border-radius: 8px;
+  }
+
+  .insights-list {
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+  }
+
+  .insight-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left-width: 4px;
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    box-shadow: var(--shadow);
+  }
+
+  .insight-title {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.88rem;
+    font-weight: 730;
+    margin-bottom: 7px;
+  }
+
+  .insight-detail {
+    color: var(--muted);
+    font-size: 0.81rem;
+    line-height: 1.55;
+    margin-bottom: 4px;
+  }
+
+  .insight-action {
+    color: var(--blue);
+    font-size: 0.81rem;
+    line-height: 1.55;
+  }
+
+  .empty-message {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    color: var(--muted);
+  }
+
+  footer {
+    color: var(--faint);
+    font-size: 0.74rem;
+    text-align: center;
+    padding: 20px 28px 24px;
+    border-top: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.55);
+  }
+
+
+  .kpi-card:hover {
+    transform: translateY(-3px);
+    border-color: #CFD9E6;
+    box-shadow: 0 10px 25px rgba(23, 63, 99, 0.12);
+  }
+
+  .kpi-card-top {
+    display: flex;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .kpi-icon {
+    width: 42px;
+    height: 42px;
+    display: grid;
+    place-items: center;
+    border-radius: 12px;
+    background: #F3F7FB;
+    font-size: 1.18rem;
+    flex-shrink: 0;
+    box-shadow: inset 0 0 0 1px #E6EDF5;
+  }
+
+  .delta-up {
+    color: var(--green);
+  }
+
+  .delta-down {
+    color: var(--orange);
+  }
+
+
+  .chart-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(23, 63, 99, 0.11);
+  }
+
+  .chart-card-header p {
+    color: var(--muted);
+    font-size: 0.73rem;
+    line-height: 1.4;
+    margin-top: 4px;
+  }
+
+  .insight-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 7px;
+  }
+
+  .severity-badge {
+    flex-shrink: 0;
+    border: 1px solid;
+    border-radius: 999px;
+    padding: 3px 8px;
+    font-size: 0.61rem;
+    letter-spacing: 0.06em;
+    font-weight: 800;
+  }
+
+  .model-panel,
+  .note-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 20px;
+  }
+
+  .model-panel {
+    padding: 18px;
+  }
+
+  .forecast-explanation {
+    margin: 16px 0 20px;
+    padding: 15px 17px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background: var(--blue-light);
+    border: 1px solid #D7E6F3;
+    border-radius: var(--radius);
+    color: var(--blue-dark);
+  }
+
+  .forecast-explanation-icon {
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    border-radius: 9px;
+    background: white;
+  }
+
+  .forecast-explanation p {
+    font-size: 0.8rem;
+    line-height: 1.6;
+  }
+
+
+  .model-panel-title,
+  .note-panel-title {
+    color: var(--blue);
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+  }
+
+  .model-grid {
+    margin-top: 13px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .model-item {
+    background: var(--background);
+    border-radius: 9px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .model-item-wide {
+    grid-column: 1 / -1;
+  }
+
+  .model-item span {
+    color: var(--muted);
+    font-size: 0.68rem;
+  }
+
+  .model-item strong {
+    font-size: 0.84rem;
+    line-height: 1.4;
+  }
+
+  .note-panel {
+    padding: 16px 18px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .note-panel-icon {
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    background: #FFF8E2;
+    border-radius: 9px;
+  }
+
+  .note-panel p {
+    color: var(--muted);
+    font-size: 0.8rem;
+    line-height: 1.55;
+    margin-top: 5px;
+  }
+
+  .footer-main {
+    color: var(--muted);
+    font-weight: 650;
+  }
+
+  .footer-tech-label {
+    margin-top: 7px;
+    color: var(--faint);
+    font-size: 0.64rem;
+    font-weight: 650;
+  }
+
+  .footer-tech {
+    margin-top: 3px;
+    color: var(--faint);
+    font-size: 0.66rem;
+  }
+
+  .footer-date {
+    margin-top: 3px;
+    color: var(--faint);
+  }
+
+
+  .business-highlight-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .business-highlight {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 12px;
+    min-height: 92px;
+    padding: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left-width: 4px;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+
+  .highlight-critical {
+    border-left-color: var(--orange);
+  }
+
+  .highlight-good {
+    border-left-color: var(--green);
+  }
+
+  .highlight-warning {
+    border-left-color: var(--yellow);
+  }
+
+  .business-highlight-icon {
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    background: var(--background);
+    font-size: 1.08rem;
+  }
+
+  .business-highlight-label {
+    color: var(--muted);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .business-highlight-value {
+    margin-top: 4px;
+    font-size: 1.10rem;
+    line-height: 1.2;
+    font-weight: 790;
+  }
+
+  .business-highlight-detail {
+    font-size: 1.45rem;
+    line-height: 1;
+    font-weight: 820;
+    color: var(--blue-dark);
+  }
+
+  .segment-highlight-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .segment-highlight-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .segment-highlight-item span {
+    color: var(--muted);
+    font-size: 0.68rem;
+  }
+
+  .segment-highlight-item strong {
+    color: var(--blue-dark);
+    font-size: 0.92rem;
+  }
+
+  .footer-author {
+    margin-top: 5px;
+    color: var(--muted);
+  }
+
+
+  .topbar-metrics {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .topbar-metric {
+    min-width: 82px;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #FAFCFE;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .topbar-metric span {
+    color: var(--muted);
+    font-size: 0.61rem;
+  }
+
+  .topbar-metric strong {
+    font-size: 0.72rem;
+    white-space: nowrap;
+  }
+
+  .topbar-generated {
+    min-width: 130px;
+  }
+
+  .chart-grid {
+    padding: 2px;
+    border-radius: 14px;
+  }
+
+  .chart-card-header {
+    padding: 18px 20px 7px;
+    border-bottom: 1px solid #EEF2F6;
+  }
+
+  .business-highlight-priority {
+    margin-top: 6px;
+    color: var(--muted);
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .footer-project {
+    margin-top: 4px;
+    color: var(--muted);
+  }
+
+  @media (max-width: 1180px) {
+    .topbar-generated {
+      display: none;
+    }
+  }
+
+  @media (max-width: 980px) {
+    :root {
+      --sidebar-width: 78px;
+    }
+
+    .brand-title {
+      font-size: 0;
+    }
+
+    .brand-title::before {
+      content: "📊";
+      font-size: 1.35rem;
+    }
+
+    .brand-subtitle,
+    .nav-item span:last-child,
+    .nav-section,
+    .sidebar-footer {
+      display: none;
+    }
+
+    .nav-item {
+      justify-content: center;
+      padding: 13px 0;
+    }
+
+    .nav-icon {
+      width: auto;
+    }
+
+    .sidebar-brand {
+      padding: 24px 0;
+      text-align: center;
+    }
+  }
+
+  @media (max-width: 760px) {
+    :root {
+      --sidebar-width: 0px;
+    }
+
+    .sidebar {
+      display: none;
+    }
+
+    .app-main {
+      margin-left: 0;
+      width: 100%;
+    }
+
+    .topbar {
+      padding: 10px 16px;
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .topbar-right {
+      width: 100%;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+
+    .topbar-metrics {
+      width: 100%;
+      overflow-x: auto;
+      padding-bottom: 2px;
+    }
+
+    .topbar-metric {
+      flex: 0 0 auto;
+    }
+
+    .period-badge {
+      max-width: calc(100% - 82px);
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .page-container {
+      padding: 20px 15px;
+    }
+
+    .chart-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .chart-wide {
+      grid-column: auto;
+    }
+
+    .business-highlight-grid,
+    .segment-highlight-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .business-highlight {
+      grid-template-columns: auto 1fr;
+    }
+
+    .business-highlight-detail {
+      grid-column: 2;
+      margin-top: 4px;
+    }
+
+    .chart-card iframe {
+      height: 470px;
+    }
+  }
+</style>
+</head>
+
+<body>
+
+
+    <div
+      class="language-content"
+      data-language-content="en"
+    >
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <div class="brand-title">
+            📊 BI Dashboard
+          </div>
+          <div class="brand-subtitle">
+            Internship Project · KivaCRM
+          </div>
+        </div>
+
+        <nav class="sidebar-nav">
+          <div class="nav-section">
+            Analytics
+          </div>
+
+          <button
+            class="nav-item active"
+            data-page-button="overview"
+            onclick="showPage('en', 'overview')"
+          >
+            <span class="nav-icon">🏠</span>
+            <span>Overview</span>
+          </button>
+
+          <button
+            class="nav-item"
+            data-page-button="performance"
+            onclick="showPage('en', 'performance')"
+          >
+            <span class="nav-icon">📈</span>
+            <span>Performance Analytics</span>
+          </button>
+
+          <button
+            class="nav-item"
+            data-page-button="segments"
+            onclick="showPage('en', 'segments')"
+          >
+            <span class="nav-icon">👥</span>
+            <span>Segment Analysis</span>
+          </button>
+
+          <button
+            class="nav-item"
+            data-page-button="forecast"
+            onclick="showPage('en', 'forecast')"
+          >
+            <span class="nav-icon">🔮</span>
+            <span>Revenue Forecast</span>
+          </button>
+
+          <div class="nav-section">
+            Reports
+          </div>
+
+          <button
+            class="nav-item"
+            data-page-button="insights"
+            onclick="showPage('en', 'insights')"
+          >
+            <span class="nav-icon">🧠</span>
+            <span>Decision Insights</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-footer">
+          Python BI Module v1.0
+        </div>
+      </aside>
+
+      <div class="app-main">
+        <header class="topbar">
+          <div>
+            <div
+              class="topbar-title"
+              data-topbar-title
+            >
+              Overview
+            </div>
+            <div class="topbar-subtitle">
+              BI Reporting &amp; Decision Support Dashboard
+            </div>
+          </div>
+
+          <div class="topbar-right">
+            <div class="topbar-metrics">
+              <div class="topbar-metric">
+                <span>Dataset</span>
+                <strong>
+                  23
+                  months
+                </strong>
+              </div>
+
+              <div class="topbar-metric">
+                <span>Customers in Scope</span>
+                <strong>200</strong>
+              </div>
+
+              <div class="topbar-metric">
+                <span>Total Orders</span>
+                <strong>1,500</strong>
+              </div>
+
+              <div class="topbar-metric topbar-generated">
+                <span>Generated</span>
+                <strong>2026-08-07 12:17</strong>
+              </div>
+            </div>
+
+            <div class="period-badge">
+              <span>Reporting period</span>
+              <strong>2023-02-22 → 2024-12-31</strong>
+            </div>
+
+            <div
+              class="language-switcher"
+              aria-label="Language selection"
+            >
+              <button
+                type="button"
+                class="language-button"
+                data-language-button="en"
+                onclick="setLanguage('en')"
+              >
+                EN
+              </button>
+
+              <button
+                type="button"
+                class="language-button"
+                data-language-button="tr"
+                onclick="setLanguage('tr')"
+              >
+                TR
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <main class="page-container">
+          <section
+            class="page active"
+            data-page="overview"
+          >
+            <div class="page-heading">
+              <div>
+                <h1>Overview</h1>
+                <p>
+                  Generated: 2026-08-07 12:17<br>
+                  <strong>Full dataset</strong>
+                </p>
+              </div>
+            </div>
+
+                        <section class="dashboard-section">
+              <div class="section-header">
+                <div>
+                  <h2>Key Performance Indicators</h2>
+                </div>
+              </div>
+
+              <div class="kpi-grid">
+                
+    <div class="kpi-card">
+      <div class="kpi-card-top">
+        <div
+          class="kpi-icon"
+          style="color:#48A999"
+        >
+          💰
+        </div>
+        <div class="kpi-label">Total Revenue</div>
+      </div>
+
+      <div class="kpi-value" style="color:#48A999">
+        $3.54M
+      </div>
+
+      <div class="kpi-sub delta-up">
+        MoM: +4.53% · Exact value: $3,541,437
+      </div>
+
+      
+    </div>
+    
+    <div class="kpi-card">
+      <div class="kpi-card-top">
+        <div
+          class="kpi-icon"
+          style="color:#2D6A9F"
+        >
+          🧾
+        </div>
+        <div class="kpi-label">Avg Order Value</div>
+      </div>
+
+      <div class="kpi-value" style="color:#2D6A9F">
+        $3.5K
+      </div>
+
+      <div class="kpi-sub">
+        per won order · Exact value: $3,472
+      </div>
+
+      
+    </div>
+    
+    <div class="kpi-card">
+      <div class="kpi-card-top">
+        <div
+          class="kpi-icon"
+          style="color:#48A999"
+        >
+          🎯
+        </div>
+        <div class="kpi-label">Win Rate</div>
+      </div>
+
+      <div class="kpi-value" style="color:#48A999">
+        77.45%
+      </div>
+
+      <div class="kpi-sub delta-up">
+        configured target: 55%
+      </div>
+
+      
+        <div class="kpi-bar">
+          <div
+            class="kpi-bar-fill"
+            style="width:77.5%;background:#48A999"
+          ></div>
+        </div>
+        
+    </div>
+    
+    <div class="kpi-card">
+      <div class="kpi-card-top">
+        <div
+          class="kpi-icon"
+          style="color:#E8C25A"
+        >
+          🔁
+        </div>
+        <div class="kpi-label">Churned Order Rate</div>
+      </div>
+
+      <div class="kpi-value" style="color:#E8C25A">
+        12.20%
+      </div>
+
+      <div class="kpi-sub delta-down">
+        order records · target: ≤10%
+      </div>
+
+      
+        <div class="kpi-bar">
+          <div
+            class="kpi-bar-fill"
+            style="width:12.2%;background:#E8C25A"
+          ></div>
+        </div>
+        
+    </div>
+    
+    <div class="kpi-card">
+      <div class="kpi-card-top">
+        <div
+          class="kpi-icon"
+          style="color:#2D6A9F"
+        >
+          👥
+        </div>
+        <div class="kpi-label">Customers in Scope</div>
+      </div>
+
+      <div class="kpi-value" style="color:#2D6A9F">
+        200
+      </div>
+
+      <div class="kpi-sub">
+        
+      </div>
+
+      
+    </div>
+    
+    <div class="kpi-card">
+      <div class="kpi-card-top">
+        <div
+          class="kpi-icon"
+          style="color:#2D6A9F"
+        >
+          📦
+        </div>
+        <div class="kpi-label">Total Orders</div>
+      </div>
+
+      <div class="kpi-value" style="color:#2D6A9F">
+        1,500
+      </div>
+
+      <div class="kpi-sub">
+        2023-02-22 → 2024-12-31
+      </div>
+
+      
+    </div>
+    
+              </div>
+            </section>
+
+            <section class="dashboard-section">
+              <div class="section-header">
+                <div>
+                  <h2>Executive Alerts</h2>
+                </div>
+              </div>
+
+              <div class="business-highlight-grid">
+                
+        <div class="business-highlight highlight-good">
+          <div class="business-highlight-icon">📈</div>
+
+          <div class="business-highlight-main">
+            <div class="business-highlight-label">
+              Revenue status
+            </div>
+
+            <div class="business-highlight-value">
+              Healthy
+            </div>
+
+            <div class="business-highlight-priority">
+              On track
+            </div>
+          </div>
+
+          <div class="business-highlight-detail">
+            +4.53%
+          </div>
+        </div>
+        
+        <div class="business-highlight highlight-critical">
+          <div class="business-highlight-icon">🔁</div>
+
+          <div class="business-highlight-main">
+            <div class="business-highlight-label">
+              Churned-order status
+            </div>
+
+            <div class="business-highlight-value">
+              Needs attention
+            </div>
+
+            <div class="business-highlight-priority">
+              Needs investigation
+            </div>
+          </div>
+
+          <div class="business-highlight-detail">
+            12.20%
+          </div>
+        </div>
+        
+        <div class="business-highlight highlight-good">
+          <div class="business-highlight-icon">🎯</div>
+
+          <div class="business-highlight-main">
+            <div class="business-highlight-label">
+              Sales status
+            </div>
+
+            <div class="business-highlight-value">
+              Healthy
+            </div>
+
+            <div class="business-highlight-priority">
+              On track
+            </div>
+          </div>
+
+          <div class="business-highlight-detail">
+            77.45%
+          </div>
+        </div>
+        
+              </div>
+            </section>
+
+                        <section class="dashboard-section">
+              <div class="section-header">
+                <div>
+                  <h2>Business Overview</h2>
+                </div>
+              </div>
+
+              <div class="chart-grid">
+                
+    <section class="chart-card chart-wide">
+      <div class="chart-card-header">
+        <h3>Monthly Revenue Trend</h3>
+        <p>Historical performance across the reporting period</p>
+      </div>
+      
+        <div class="image-wrap">
+          <img
+            src="charts/monthly_trend_en.png"
+            alt="Monthly Revenue Trend"
+            loading="lazy"
+          />
+        </div>
+        
+    </section>
+    
+    <section class="chart-card chart-standard">
+      <div class="chart-card-header">
+        <h3>Revenue by Region</h3>
+        <p>Comparison of won-order revenue by region</p>
+      </div>
+      
+        <div class="image-wrap">
+          <img
+            src="charts/regional_revenue_en.png"
+            alt="Revenue by Region"
+            loading="lazy"
+          />
+        </div>
+        
+    </section>
+    
+    <section class="chart-card chart-standard">
+      <div class="chart-card-header">
+        <h3>Revenue by Product</h3>
+        <p>Revenue concentration across products</p>
+      </div>
+      
+        <iframe
+          src="charts/product_mix_en.html"
+          width="100%"
+          height="520"
+          frameborder="0"
+          loading="lazy"
+          title="Revenue by Product"
+        ></iframe>
+        
+    </section>
+    
+              </div>
+            </section>
+
+                        <section class="dashboard-section">
+              <div class="section-header">
+                <div>
+                  <h2>Executive Summary</h2>
+                  <p>Highest-priority findings from the decision-support engine</p>
+                </div>
+              </div>
+
+              <div class="summary-strip">
+                
+        <div class="summary-item">
+          <div
+            class="summary-icon"
+            style="color:#E8855A"
+          >
+            🔴
+          </div>
+          <div>
+            <div class="summary-label">Critical findings</div>
+            <div class="summary-value">0</div>
+          </div>
+        </div>
+        
+        <div class="summary-item">
+          <div
+            class="summary-icon"
+            style="color:#48A999"
+          >
+            🟢
+          </div>
+          <div>
+            <div class="summary-label">Positive findings</div>
+            <div class="summary-value">3</div>
+          </div>
+        </div>
+        
+        <div class="summary-item">
+          <div
+            class="summary-icon"
+            style="color:#2D6A9F"
+          >
+            ➡
+          </div>
+          <div>
+            <div class="summary-label">Trend</div>
+            <div class="summary-value">Growing</div>
+          </div>
+        </div>
+        
+        <div class="summary-item">
+          <div
+            class="summary-icon"
+            style="color:#2D6A9F"
+          >
+            🧩
+          </div>
+          <div>
+            <div class="summary-label">Top product</div>
+            <div class="summary-value">CRM Enterprise</div>
+          </div>
+        </div>
+        
+        <div class="summary-item">
+          <div
+            class="summary-icon"
+            style="color:#98A4B8"
+          >
+            📍
+          </div>
+          <div>
+            <div class="summary-label">Top region</div>
+            <div class="summary-value">Bursa</div>
+          </div>
+        </div>
+        
+              </div>
+            </section>
+          </section>
+
+          <section
+            class="page"
+            data-page="performance"
+            hidden
+          >
+            <div class="page-heading">
+              <div>
+                <h1>Performance Analytics</h1>
+                <p>Sales &amp; Operational Performance</p>
+              </div>
+            </div>
+
+            <div class="chart-grid">
+              
+    <section class="chart-card chart-standard">
+      <div class="chart-card-header">
+        <h3>Order Status Breakdown</h3>
+        <p>Distribution of Won, Lost, and Churned records</p>
+      </div>
+      
+        <iframe
+          src="charts/status_breakdown_en.html"
+          width="100%"
+          height="520"
+          frameborder="0"
+          loading="lazy"
+          title="Order Status Breakdown"
+        ></iframe>
+        
+    </section>
+    
+    <section class="chart-card chart-wide">
+      <div class="chart-card-header">
+        <h3>Account Manager Performance</h3>
+        <p>Revenue and won-order volume by account manager</p>
+      </div>
+      
+        <iframe
+          src="charts/am_performance_en.html"
+          width="100%"
+          height="520"
+          frameborder="0"
+          loading="lazy"
+          title="Account Manager Performance"
+        ></iframe>
+        
+    </section>
+    
+            </div>
+          </section>
+
+          <section
+            class="page"
+            data-page="segments"
+            hidden
+          >
+            <div class="page-heading">
+              <div>
+                <h1>Customer Segment Analysis</h1>
+                <p>Compare revenue contribution, conversion, and active-customer value by segment.</p>
+              </div>
+            </div>
+
+            
+    <div class="segment-highlight-grid">
+      
+        <div class="segment-highlight-item">
+          <span>Highest revenue segment</span>
+          <strong>SMB</strong>
+        </div>
+        
+        <div class="segment-highlight-item">
+          <span>Highest revenue per active customer</span>
+          <strong>Enterprise</strong>
+        </div>
+        
+        <div class="segment-highlight-item">
+          <span>Highest win rate segment</span>
+          <strong>Enterprise</strong>
+        </div>
+        
+        <div class="segment-highlight-item">
+          <span>Lowest churned-order rate segment</span>
+          <strong>Enterprise</strong>
+        </div>
+        
+    </div>
+
+    <div class="note-panel">
+      <div class="note-panel-icon">💡</div>
+      <div>
+        <div class="note-panel-title">
+          Segment Highlights
+        </div>
+        <p>Revenue, conversion, and churned-order status should be assessed together rather than in isolation.</p>
+      </div>
+    </div>
+    
+
+            <div class="chart-grid">
+              
+    <section class="chart-card chart-wide">
+      <div class="chart-card-header">
+        <h3>Customer Segment Performance</h3>
+        <p>Revenue contribution and win rate by customer segment</p>
+      </div>
+      
+        <iframe
+          src="charts/segment_performance_en.html"
+          width="100%"
+          height="520"
+          frameborder="0"
+          loading="lazy"
+          title="Customer Segment Performance"
+        ></iframe>
+        
+    </section>
+    
+            </div>
+          </section>
+
+          <section
+            class="page"
+            data-page="forecast"
+            hidden
+          >
+            <div class="page-heading">
+              <div>
+                <h1>Three-Month Revenue Forecast</h1>
+                <p>A linear baseline intended as a directional estimate rather than a guaranteed prediction.</p>
+              </div>
+            </div>
+
+            <div class="chart-grid">
+              
+    <section class="chart-card chart-wide">
+      <div class="chart-card-header">
+        <h3>Three-Month Revenue Forecast</h3>
+        <p>Historical revenue, fitted trend, and next three months</p>
+      </div>
+      
+        <iframe
+          src="charts/revenue_forecast_en.html"
+          width="100%"
+          height="520"
+          frameborder="0"
+          loading="lazy"
+          title="Three-Month Revenue Forecast"
+        ></iframe>
+        
+    </section>
+    
+            </div>
+
+            <div class="forecast-explanation">
+              <div class="forecast-explanation-icon">ℹ️</div>
+              <p>This forecast is derived from historical monthly revenue using a simple linear trend and should be interpreted as a directional estimate rather than a precise prediction.</p>
+            </div>
+
+            
+    <div class="model-panel">
+      <div class="model-panel-title">
+        Forecast Model
+      </div>
+
+      <div class="model-grid">
+        <div class="model-item">
+          <span>Model</span>
+          <strong>Linear Regression (NumPy polyfit)</strong>
+        </div>
+
+        <div class="model-item">
+          <span>Forecast horizon</span>
+          <strong>3 months</strong>
+        </div>
+
+        <div class="model-item">
+          <span>Monthly slope</span>
+          <strong>19,459.42</strong>
+        </div>
+
+        
+        <div class="model-item">
+          <span>R²</span>
+          <strong>0.7900</strong>
+        </div>
+        
+
+        <div class="model-item">
+          <span>Forecast Reliability</span>
+          <strong>High</strong>
+        </div>
+
+        <div class="model-item model-item-wide">
+          <span>Interpretation</span>
+          <strong>Directional baseline; not a guaranteed prediction</strong>
+        </div>
+      </div>
+    </div>
+    
+          </section>
+
+          <section
+            class="page"
+            data-page="insights"
+            hidden
+          >
+            <div class="page-heading">
+              <div>
+                <h1>All Decision-Support Insights</h1>
+                <p>Prioritized findings and recommended actions generated from KPI thresholds.</p>
+              </div>
+            </div>
+
+            <div class="insights-list">
+              
+    <article
+      class="insight-card"
+      style="border-left-color:#E8C25A"
+    >
+      <div class="insight-header">
+        <div class="insight-title">
+          <span>🟡</span>
+          <span>[Order Status] Churn-status rate elevated</span>
+        </div>
+
+        <span
+          class="severity-badge"
+          style="background:#E8C25A18;color:#E8C25A;border-color:#E8C25A45"
+        >
+          🟡
+          Warning
+        </span>
+      </div>
+
+      <div class="insight-detail">
+        <b>Detail:</b>
+        12.20% of order records have the &#x27;Churned&#x27; status.
+      </div>
+
+      <div class="insight-action">
+        <b>▶ Action:</b>
+        Review churn patterns and prepare targeted retention actions.
+      </div>
+    </article>
+    
+    <article
+      class="insight-card"
+      style="border-left-color:#E8C25A"
+    >
+      <div class="insight-header">
+        <div class="insight-title">
+          <span>🟡</span>
+          <span>[Product] Revenue concentrated in one product</span>
+        </div>
+
+        <span
+          class="severity-badge"
+          style="background:#E8C25A18;color:#E8C25A;border-color:#E8C25A45"
+        >
+          🟡
+          Warning
+        </span>
+      </div>
+
+      <div class="insight-detail">
+        <b>Detail:</b>
+        &#x27;CRM Enterprise&#x27; contributes 60.76% of total revenue.
+      </div>
+
+      <div class="insight-action">
+        <b>▶ Action:</b>
+        Increase cross-selling and upselling of other products to reduce concentration risk.
+      </div>
+    </article>
+    
+    <article
+      class="insight-card"
+      style="border-left-color:#2D6A9F"
+    >
+      <div class="insight-header">
+        <div class="insight-title">
+          <span>🔵</span>
+          <span>[Region] Regional performance leaders identified</span>
+        </div>
+
+        <span
+          class="severity-badge"
+          style="background:#2D6A9F18;color:#2D6A9F;border-color:#2D6A9F45"
+        >
+          🔵
+          Info
+        </span>
+      </div>
+
+      <div class="insight-detail">
+        <b>Detail:</b>
+        Bursa generated the highest revenue at 868,920.26. Antalya had the highest average order value at 3,625.50.
+      </div>
+
+      <div class="insight-action">
+        <b>▶ Action:</b>
+        Compare the sales practices of the leading regions and evaluate whether they can be replicated elsewhere.
+      </div>
+    </article>
+    
+    <article
+      class="insight-card"
+      style="border-left-color:#48A999"
+    >
+      <div class="insight-header">
+        <div class="insight-title">
+          <span>🟢</span>
+          <span>[Revenue] Revenue growing</span>
+        </div>
+
+        <span
+          class="severity-badge"
+          style="background:#48A99918;color:#48A999;border-color:#48A99945"
+        >
+          🟢
+          Good
+        </span>
+      </div>
+
+      <div class="insight-detail">
+        <b>Detail:</b>
+        Month-over-month revenue increased by 4.53%.
+      </div>
+
+      <div class="insight-action">
+        <b>▶ Action:</b>
+        Identify which products, regions, or account managers contributed most to the growth.
+      </div>
+    </article>
+    
+    <article
+      class="insight-card"
+      style="border-left-color:#48A999"
+    >
+      <div class="insight-header">
+        <div class="insight-title">
+          <span>🟢</span>
+          <span>[Sales] Win rate healthy</span>
+        </div>
+
+        <span
+          class="severity-badge"
+          style="background:#48A99918;color:#48A999;border-color:#48A99945"
+        >
+          🟢
+          Good
+        </span>
+      </div>
+
+      <div class="insight-detail">
+        <b>Detail:</b>
+        Win rate is 77.45%.
+      </div>
+
+      <div class="insight-action">
+        <b>▶ Action:</b>
+        Document successful deal patterns and apply them across the sales team.
+      </div>
+    </article>
+    
+    <article
+      class="insight-card"
+      style="border-left-color:#48A999"
+    >
+      <div class="insight-header">
+        <div class="insight-title">
+          <span>🟢</span>
+          <span>[Trend] Overall revenue trend is growing</span>
+        </div>
+
+        <span
+          class="severity-badge"
+          style="background:#48A99918;color:#48A999;border-color:#48A99945"
+        >
+          🟢
+          Good
+        </span>
+      </div>
+
+      <div class="insight-detail">
+        <b>Detail:</b>
+        Linear trend slope is 19,459.42 per month. This finding describes the long-term direction across the full reporting period. The latest MoM change is +4.53% and compares only the final two calendar months.
+      </div>
+
+      <div class="insight-action">
+        <b>▶ Action:</b>
+        Use the current trend as a reference when setting future sales targets.
+      </div>
+    </article>
+    
+            </div>
+          </section>
+        </main>
+
+        <footer>
+          <div class="footer-main">
+            Python BI Reporting &amp; Decision Support Dashboard
+          </div>
+
+          <div class="footer-author">
+            Developed by
+            <strong>Salsabeel Alfayoumi</strong>
+          </div>
+
+          <div class="footer-project">
+            KTÜ Computer Engineering Internship · KivaCRM
+          </div>
+
+          <div class="footer-tech-label">
+            Powered by
+          </div>
+
+          <div class="footer-tech">
+            Python • Pandas • NumPy • Plotly • Matplotlib • OpenPyXL
+          </div>
+
+          <div class="footer-date">2026-08-07 12:17</div>
+        </footer>
+      </div>
+    </div>
+    
+
+
+    <div
+      class="language-content"
+      data-language-content="tr" hidden
+    >
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <div class="brand-title">
+            📊 İş Zekâsı Paneli
+          </div>
+          <div class="brand-subtitle">
+            Staj Projesi · KivaCRM
+          </div>
+        </div>
+
+        <nav class="sidebar-nav">
+          <div class="nav-section">
+            Analizler
+          </div>
+
+          <button
+            class="nav-item active"
+            data-page-button="overview"
+            onclick="showPage('tr', 'overview')"
+          >
+            <span class="nav-icon">🏠</span>
+            <span>Genel Bakış</span>
+          </button>
+
+          <button
+            class="nav-item"
+            data-page-button="performance"
+            onclick="showPage('tr', 'performance')"
+          >
+            <span class="nav-icon">📈</span>
+            <span>Performans Analizleri</span>
+          </button>
+
+          <button
+            class="nav-item"
+            data-page-button="segments"
+            onclick="showPage('tr', 'segments')"
+          >
+            <span class="nav-icon">👥</span>
+            <span>Segment Analizi</span>
+          </button>
+
+          <button
+            class="nav-item"
+            data-page-button="forecast"
+            onclick="showPage('tr', 'forecast')"
+          >
+            <span class="nav-icon">🔮</span>
+            <span>Gelir Tahmini</span>
+          </button>
+
+          <div class="nav-section">
+            Raporlar
+          </div>
+
+          <button
+            class="nav-item"
+            data-page-button="insights"
+            onclick="showPage('tr', 'insights')"
+          >
+            <span class="nav-icon">🧠</span>
+            <span>Karar Destek İçgörüleri</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-footer">
+          Python BI Module v1.0
+        </div>
+      </aside>
+
+      <div class="app-main">
+        <header class="topbar">
+          <div>
+            <div
+              class="topbar-title"
+              data-topbar-title
+            >
+              Genel Bakış
+            </div>
+            <div class="topbar-subtitle">
+              İş Zekâsı Raporlama ve Karar Destek Paneli
+            </div>
+          </div>
+
+          <div class="topbar-right">
+            <div class="topbar-metrics">
+              <div class="topbar-metric">
+                <span>Veri seti</span>
+                <strong>
+                  23
+                  ay
+                </strong>
+              </div>
+
+              <div class="topbar-metric">
+                <span>Kapsamdaki Müşteriler</span>
+                <strong>200</strong>
+              </div>
+
+              <div class="topbar-metric">
+                <span>Toplam Sipariş</span>
+                <strong>1,500</strong>
+              </div>
+
+              <div class="topbar-metric topbar-generated">
+                <span>Oluşturulma</span>
+                <strong>2026-08-07 12:17</strong>
+              </div>
+            </div>
+
+            <div class="period-badge">
+              <span>Raporlama dönemi</span>
+              <strong>2023-02-22 → 2024-12-31</strong>
+            </div>
+
+            <div
+              class="language-switcher"
+              aria-label="Language selection"
+            >
+              <button
+                type="button"
+                class="language-button"
+                data-language-button="en"
+                onclick="setLanguage('en')"
+              >
+                EN
+              </button>
+
+              <button
+                type="button"
+                class="language-button"
+                data-language-button="tr"
+                onclick="setLanguage('tr')"
+              >
+                TR
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <main class="page-container">
+          <section
+            class="page active"
+            data-page="overview"
+          >
+            <div class="page-heading">
+              <div>
+                <h1>Genel Bakış</h1>
+                <p>
+                  Oluşturulma: 2026-08-07 12:17<br>
+                  <strong>Tüm veri seti</strong>
+                </p>
+              </div>
+            </div>
+
+                        <section class="dashboard-section">
+              <div class="section-header">
+                <div>
+                  <h2>Temel Performans Göstergeleri</h2>
+                </div>
+              </div>
+
+              <div class="kpi-grid">
+                
+    <div class="kpi-card">
+      <div class="kpi-card-top">
+        <div
+          class="kpi-icon"
+          style="color:#48A999"
+        >
+          💰
+        </div>
+        <div class="kpi-label">Toplam Gelir</div>
+      </div>
+
+      <div class="kpi-value" style="color:#48A999">
+        $3.54M
+      </div>
+
+      <div class="kpi-sub delta-up">
+        Aylık değişim: +4.53% · Kesin değer: $3,541,437
+      </div>
+
+      
+    </div>
+    
+    <div class="kpi-card">
+      <div class="kpi-card-top">
+        <div
+          class="kpi-icon"
+          style="color:#2D6A9F"
+        >
+          🧾
+        </div>
+        <div class="kpi-label">Ortalama Sipariş Değeri</div>
+      </div>
+
+      <div class="kpi-value" style="color:#2D6A9F">
+        $3.5K
+      </div>
+
+      <div class="kpi-sub">
+        kazanılan sipariş başına · Kesin değer: $3,472
+      </div>
+
+      
+    </div>
+    
+    <div class="kpi-card">
+      <div class="kpi-card-top">
+        <div
+          class="kpi-icon"
+          style="color:#48A999"
+        >
+          🎯
+        </div>
+        <div class="kpi-label">Kazanma Oranı</div>
+      </div>
+
+      <div class="kpi-value" style="color:#48A999">
+        77.45%
+      </div>
+
+      <div class="kpi-sub delta-up">
+        tanımlı hedef: %55
+      </div>
+
+      
+        <div class="kpi-bar">
+          <div
+            class="kpi-bar-fill"
+            style="width:77.5%;background:#48A999"
+          ></div>
+        </div>
+        
+    </div>
+    
+    <div class="kpi-card">
+      <div class="kpi-card-top">
+        <div
+          class="kpi-icon"
+          style="color:#E8C25A"
+        >
+          🔁
+        </div>
+        <div class="kpi-label">Churn Durumlu Sipariş Oranı</div>
+      </div>
+
+      <div class="kpi-value" style="color:#E8C25A">
+        12.20%
+      </div>
+
+      <div class="kpi-sub delta-down">
+        sipariş kayıtları · hedef: ≤%10
+      </div>
+
+      
+        <div class="kpi-bar">
+          <div
+            class="kpi-bar-fill"
+            style="width:12.2%;background:#E8C25A"
+          ></div>
+        </div>
+        
+    </div>
+    
+    <div class="kpi-card">
+      <div class="kpi-card-top">
+        <div
+          class="kpi-icon"
+          style="color:#2D6A9F"
+        >
+          👥
+        </div>
+        <div class="kpi-label">Kapsamdaki Müşteriler</div>
+      </div>
+
+      <div class="kpi-value" style="color:#2D6A9F">
+        200
+      </div>
+
+      <div class="kpi-sub">
+        
+      </div>
+
+      
+    </div>
+    
+    <div class="kpi-card">
+      <div class="kpi-card-top">
+        <div
+          class="kpi-icon"
+          style="color:#2D6A9F"
+        >
+          📦
+        </div>
+        <div class="kpi-label">Toplam Sipariş</div>
+      </div>
+
+      <div class="kpi-value" style="color:#2D6A9F">
+        1,500
+      </div>
+
+      <div class="kpi-sub">
+        2023-02-22 → 2024-12-31
+      </div>
+
+      
+    </div>
+    
+              </div>
+            </section>
+
+            <section class="dashboard-section">
+              <div class="section-header">
+                <div>
+                  <h2>Yönetici Uyarıları</h2>
+                </div>
+              </div>
+
+              <div class="business-highlight-grid">
+                
+        <div class="business-highlight highlight-good">
+          <div class="business-highlight-icon">📈</div>
+
+          <div class="business-highlight-main">
+            <div class="business-highlight-label">
+              Gelir durumu
+            </div>
+
+            <div class="business-highlight-value">
+              Sağlıklı
+            </div>
+
+            <div class="business-highlight-priority">
+              Hedef doğrultusunda
+            </div>
+          </div>
+
+          <div class="business-highlight-detail">
+            +4.53%
+          </div>
+        </div>
+        
+        <div class="business-highlight highlight-critical">
+          <div class="business-highlight-icon">🔁</div>
+
+          <div class="business-highlight-main">
+            <div class="business-highlight-label">
+              Churn durumlu siparişler
+            </div>
+
+            <div class="business-highlight-value">
+              İyileştirme gerekli
+            </div>
+
+            <div class="business-highlight-priority">
+              İncelenmesi gerekli
+            </div>
+          </div>
+
+          <div class="business-highlight-detail">
+            12.20%
+          </div>
+        </div>
+        
+        <div class="business-highlight highlight-good">
+          <div class="business-highlight-icon">🎯</div>
+
+          <div class="business-highlight-main">
+            <div class="business-highlight-label">
+              Satış durumu
+            </div>
+
+            <div class="business-highlight-value">
+              Sağlıklı
+            </div>
+
+            <div class="business-highlight-priority">
+              Hedef doğrultusunda
+            </div>
+          </div>
+
+          <div class="business-highlight-detail">
+            77.45%
+          </div>
+        </div>
+        
+              </div>
+            </section>
+
+                        <section class="dashboard-section">
+              <div class="section-header">
+                <div>
+                  <h2>İşletme Genel Görünümü</h2>
+                </div>
+              </div>
+
+              <div class="chart-grid">
+                
+    <section class="chart-card chart-wide">
+      <div class="chart-card-header">
+        <h3>Aylık Gelir Trendi</h3>
+        <p>Raporlama dönemindeki tarihsel performans</p>
+      </div>
+      
+        <div class="image-wrap">
+          <img
+            src="charts/monthly_trend_tr.png"
+            alt="Aylık Gelir Trendi"
+            loading="lazy"
+          />
+        </div>
+        
+    </section>
+    
+    <section class="chart-card chart-standard">
+      <div class="chart-card-header">
+        <h3>Bölge Bazında Gelir</h3>
+        <p>Bölgelere göre kazanılan sipariş geliri karşılaştırması</p>
+      </div>
+      
+        <div class="image-wrap">
+          <img
+            src="charts/regional_revenue_tr.png"
+            alt="Bölge Bazında Gelir"
+            loading="lazy"
+          />
+        </div>
+        
+    </section>
+    
+    <section class="chart-card chart-standard">
+      <div class="chart-card-header">
+        <h3>Ürün Bazında Gelir</h3>
+        <p>Ürünlere göre gelir yoğunluğu</p>
+      </div>
+      
+        <iframe
+          src="charts/product_mix_tr.html"
+          width="100%"
+          height="520"
+          frameborder="0"
+          loading="lazy"
+          title="Ürün Bazında Gelir"
+        ></iframe>
+        
+    </section>
+    
+              </div>
+            </section>
+
+                        <section class="dashboard-section">
+              <div class="section-header">
+                <div>
+                  <h2>Yönetici Özeti</h2>
+                  <p>Karar destek motorunun en yüksek öncelikli bulguları</p>
+                </div>
+              </div>
+
+              <div class="summary-strip">
+                
+        <div class="summary-item">
+          <div
+            class="summary-icon"
+            style="color:#E8855A"
+          >
+            🔴
+          </div>
+          <div>
+            <div class="summary-label">Kritik bulgu</div>
+            <div class="summary-value">0</div>
+          </div>
+        </div>
+        
+        <div class="summary-item">
+          <div
+            class="summary-icon"
+            style="color:#48A999"
+          >
+            🟢
+          </div>
+          <div>
+            <div class="summary-label">Olumlu bulgu</div>
+            <div class="summary-value">3</div>
+          </div>
+        </div>
+        
+        <div class="summary-item">
+          <div
+            class="summary-icon"
+            style="color:#2D6A9F"
+          >
+            ➡
+          </div>
+          <div>
+            <div class="summary-label">Trend</div>
+            <div class="summary-value">Büyüyen</div>
+          </div>
+        </div>
+        
+        <div class="summary-item">
+          <div
+            class="summary-icon"
+            style="color:#2D6A9F"
+          >
+            🧩
+          </div>
+          <div>
+            <div class="summary-label">En başarılı ürün</div>
+            <div class="summary-value">CRM Enterprise</div>
+          </div>
+        </div>
+        
+        <div class="summary-item">
+          <div
+            class="summary-icon"
+            style="color:#98A4B8"
+          >
+            📍
+          </div>
+          <div>
+            <div class="summary-label">En başarılı bölge</div>
+            <div class="summary-value">Bursa</div>
+          </div>
+        </div>
+        
+              </div>
+            </section>
+          </section>
+
+          <section
+            class="page"
+            data-page="performance"
+            hidden
+          >
+            <div class="page-heading">
+              <div>
+                <h1>Performans Analizleri</h1>
+                <p>Satış ve Operasyon Performansı</p>
+              </div>
+            </div>
+
+            <div class="chart-grid">
+              
+    <section class="chart-card chart-standard">
+      <div class="chart-card-header">
+        <h3>Sipariş Durumu Dağılımı</h3>
+        <p>Kazanılan, kaybedilen ve churn durumundaki kayıtların dağılımı</p>
+      </div>
+      
+        <iframe
+          src="charts/status_breakdown_tr.html"
+          width="100%"
+          height="520"
+          frameborder="0"
+          loading="lazy"
+          title="Sipariş Durumu Dağılımı"
+        ></iframe>
+        
+    </section>
+    
+    <section class="chart-card chart-wide">
+      <div class="chart-card-header">
+        <h3>Müşteri Temsilcisi Performansı</h3>
+        <p>Müşteri temsilcilerine göre gelir ve kazanılan sipariş hacmi</p>
+      </div>
+      
+        <iframe
+          src="charts/am_performance_tr.html"
+          width="100%"
+          height="520"
+          frameborder="0"
+          loading="lazy"
+          title="Müşteri Temsilcisi Performansı"
+        ></iframe>
+        
+    </section>
+    
+            </div>
+          </section>
+
+          <section
+            class="page"
+            data-page="segments"
+            hidden
+          >
+            <div class="page-heading">
+              <div>
+                <h1>Müşteri Segmenti Analizi</h1>
+                <p>Segmentleri gelir katkısı, dönüşüm ve aktif müşteri değeri açısından karşılaştırın.</p>
+              </div>
+            </div>
+
+            
+    <div class="segment-highlight-grid">
+      
+        <div class="segment-highlight-item">
+          <span>En yüksek gelir segmenti</span>
+          <strong>SMB</strong>
+        </div>
+        
+        <div class="segment-highlight-item">
+          <span>Aktif müşteri başına en yüksek gelir</span>
+          <strong>Enterprise</strong>
+        </div>
+        
+        <div class="segment-highlight-item">
+          <span>En yüksek kazanma oranı</span>
+          <strong>Enterprise</strong>
+        </div>
+        
+        <div class="segment-highlight-item">
+          <span>En düşük churn durumlu sipariş oranı</span>
+          <strong>Enterprise</strong>
+        </div>
+        
+    </div>
+
+    <div class="note-panel">
+      <div class="note-panel-icon">💡</div>
+      <div>
+        <div class="note-panel-title">
+          Segment Özeti
+        </div>
+        <p>Gelir, dönüşüm ve churn durumlu sipariş oranı birlikte değerlendirilmelidir.</p>
+      </div>
+    </div>
+    
+
+            <div class="chart-grid">
+              
+    <section class="chart-card chart-wide">
+      <div class="chart-card-header">
+        <h3>Müşteri Segmenti Performansı</h3>
+        <p>Müşteri segmentlerine göre gelir katkısı ve kazanma oranı</p>
+      </div>
+      
+        <iframe
+          src="charts/segment_performance_tr.html"
+          width="100%"
+          height="520"
+          frameborder="0"
+          loading="lazy"
+          title="Müşteri Segmenti Performansı"
+        ></iframe>
+        
+    </section>
+    
+            </div>
+          </section>
+
+          <section
+            class="page"
+            data-page="forecast"
+            hidden
+          >
+            <div class="page-heading">
+              <div>
+                <h1>Üç Aylık Gelir Tahmini</h1>
+                <p>Kesin bir öngörü değil, yön gösterici temel tahmin olarak değerlendirilmelidir.</p>
+              </div>
+            </div>
+
+            <div class="chart-grid">
+              
+    <section class="chart-card chart-wide">
+      <div class="chart-card-header">
+        <h3>Üç Aylık Gelir Tahmini</h3>
+        <p>Gerçekleşen gelir, doğrusal trend ve sonraki üç ay</p>
+      </div>
+      
+        <iframe
+          src="charts/revenue_forecast_tr.html"
+          width="100%"
+          height="520"
+          frameborder="0"
+          loading="lazy"
+          title="Üç Aylık Gelir Tahmini"
+        ></iframe>
+        
+    </section>
+    
+            </div>
+
+            <div class="forecast-explanation">
+              <div class="forecast-explanation-icon">ℹ️</div>
+              <p>Bu tahmin, geçmiş aylık gelir verilerinden basit bir doğrusal trend kullanılarak oluşturulmuştur ve kesin bir öngörü yerine yön gösterici bir tahmin olarak değerlendirilmelidir.</p>
+            </div>
+
+            
+    <div class="model-panel">
+      <div class="model-panel-title">
+        Tahmin Modeli
+      </div>
+
+      <div class="model-grid">
+        <div class="model-item">
+          <span>Model</span>
+          <strong>Linear Regression (NumPy polyfit)</strong>
+        </div>
+
+        <div class="model-item">
+          <span>Tahmin dönemi</span>
+          <strong>3 ay</strong>
+        </div>
+
+        <div class="model-item">
+          <span>Aylık eğim</span>
+          <strong>19,459.42</strong>
+        </div>
+
+        
+        <div class="model-item">
+          <span>R²</span>
+          <strong>0.7900</strong>
+        </div>
+        
+
+        <div class="model-item">
+          <span>Tahmin Güvenilirliği</span>
+          <strong>Yüksek</strong>
+        </div>
+
+        <div class="model-item model-item-wide">
+          <span>Yorum</span>
+          <strong>Yön gösterici temel tahmindir; kesin öngörü değildir</strong>
+        </div>
+      </div>
+    </div>
+    
+          </section>
+
+          <section
+            class="page"
+            data-page="insights"
+            hidden
+          >
+            <div class="page-heading">
+              <div>
+                <h1>Tüm Karar Destek İçgörüleri</h1>
+                <p>KPI eşiklerinden üretilen önceliklendirilmiş bulgular ve önerilen aksiyonlar.</p>
+              </div>
+            </div>
+
+            <div class="insights-list">
+              
+    <article
+      class="insight-card"
+      style="border-left-color:#E8C25A"
+    >
+      <div class="insight-header">
+        <div class="insight-title">
+          <span>🟡</span>
+          <span>[Sipariş Durumu] Churn durumlu sipariş oranı yükselmiş</span>
+        </div>
+
+        <span
+          class="severity-badge"
+          style="background:#E8C25A18;color:#E8C25A;border-color:#E8C25A45"
+        >
+          🟡
+          Uyarı
+        </span>
+      </div>
+
+      <div class="insight-detail">
+        <b>Detay:</b>
+        Sipariş kayıtlarının %12.20 kadarı &#x27;Churned&#x27; durumundadır.
+      </div>
+
+      <div class="insight-action">
+        <b>▶ Aksiyon:</b>
+        Churn örüntülerini inceleyin ve hedefli müşteri tutundurma aksiyonları hazırlayın.
+      </div>
+    </article>
+    
+    <article
+      class="insight-card"
+      style="border-left-color:#E8C25A"
+    >
+      <div class="insight-header">
+        <div class="insight-title">
+          <span>🟡</span>
+          <span>[Ürün] Gelir tek bir üründe yoğunlaşmış</span>
+        </div>
+
+        <span
+          class="severity-badge"
+          style="background:#E8C25A18;color:#E8C25A;border-color:#E8C25A45"
+        >
+          🟡
+          Uyarı
+        </span>
+      </div>
+
+      <div class="insight-detail">
+        <b>Detay:</b>
+        &#x27;CRM Enterprise&#x27; toplam gelirin %60.76 kadarını oluşturmaktadır.
+      </div>
+
+      <div class="insight-action">
+        <b>▶ Aksiyon:</b>
+        Yoğunlaşma riskini azaltmak için diğer ürünlerde çapraz satış ve üst satış çalışmalarını artırın.
+      </div>
+    </article>
+    
+    <article
+      class="insight-card"
+      style="border-left-color:#2D6A9F"
+    >
+      <div class="insight-header">
+        <div class="insight-title">
+          <span>🔵</span>
+          <span>[Bölge] Bölgesel performans liderleri belirlendi</span>
+        </div>
+
+        <span
+          class="severity-badge"
+          style="background:#2D6A9F18;color:#2D6A9F;border-color:#2D6A9F45"
+        >
+          🔵
+          Bilgi
+        </span>
+      </div>
+
+      <div class="insight-detail">
+        <b>Detay:</b>
+        Bursa, 868,920.26 ile en yüksek geliri elde etti. Antalya, 3,625.50 ile en yüksek ortalama sipariş değerine ulaştı.
+      </div>
+
+      <div class="insight-action">
+        <b>▶ Aksiyon:</b>
+        Önde gelen bölgelerin satış uygulamalarını karşılaştırın ve bu uygulamaların diğer bölgelerde kullanılabilirliğini değerlendirin.
+      </div>
+    </article>
+    
+    <article
+      class="insight-card"
+      style="border-left-color:#48A999"
+    >
+      <div class="insight-header">
+        <div class="insight-title">
+          <span>🟢</span>
+          <span>[Gelir] Gelir artıyor</span>
+        </div>
+
+        <span
+          class="severity-badge"
+          style="background:#48A99918;color:#48A999;border-color:#48A99945"
+        >
+          🟢
+          Olumlu
+        </span>
+      </div>
+
+      <div class="insight-detail">
+        <b>Detay:</b>
+        Gelir önceki aya göre %4.53 arttı.
+      </div>
+
+      <div class="insight-action">
+        <b>▶ Aksiyon:</b>
+        Büyümeye en fazla katkı sağlayan ürünleri, bölgeleri veya müşteri temsilcilerini belirleyin.
+      </div>
+    </article>
+    
+    <article
+      class="insight-card"
+      style="border-left-color:#48A999"
+    >
+      <div class="insight-header">
+        <div class="insight-title">
+          <span>🟢</span>
+          <span>[Satış] Kazanma oranı sağlıklı</span>
+        </div>
+
+        <span
+          class="severity-badge"
+          style="background:#48A99918;color:#48A999;border-color:#48A99945"
+        >
+          🟢
+          Olumlu
+        </span>
+      </div>
+
+      <div class="insight-detail">
+        <b>Detay:</b>
+        Kazanma oranı %77.45.
+      </div>
+
+      <div class="insight-action">
+        <b>▶ Aksiyon:</b>
+        Başarılı satış örüntülerini belgeleyin ve satış ekibi genelinde uygulayın.
+      </div>
+    </article>
+    
+    <article
+      class="insight-card"
+      style="border-left-color:#48A999"
+    >
+      <div class="insight-header">
+        <div class="insight-title">
+          <span>🟢</span>
+          <span>[Trend] Genel gelir trendi yükseliyor</span>
+        </div>
+
+        <span
+          class="severity-badge"
+          style="background:#48A99918;color:#48A999;border-color:#48A99945"
+        >
+          🟢
+          Olumlu
+        </span>
+      </div>
+
+      <div class="insight-detail">
+        <b>Detay:</b>
+        Doğrusal trend eğimi aylık 19,459.42 seviyesindedir. Bu bulgu tüm raporlama dönemindeki uzun vadeli eğilimi açıklar. Son ayın değişimi %+4.53 olup yalnızca son iki takvim ayını karşılaştırır.
+      </div>
+
+      <div class="insight-action">
+        <b>▶ Aksiyon:</b>
+        Gelecekteki satış hedeflerini belirlerken mevcut trendi referans olarak kullanın.
+      </div>
+    </article>
+    
+            </div>
+          </section>
+        </main>
+
+        <footer>
+          <div class="footer-main">
+            Python BI Reporting &amp; Decision Support Dashboard
+          </div>
+
+          <div class="footer-author">
+            Geliştiren
+            <strong>Salsabeel Alfayoumi</strong>
+          </div>
+
+          <div class="footer-project">
+            KTÜ Computer Engineering Internship · KivaCRM
+          </div>
+
+          <div class="footer-tech-label">
+            Powered by
+          </div>
+
+          <div class="footer-tech">
+            Python • Pandas • NumPy • Plotly • Matplotlib • OpenPyXL
+          </div>
+
+          <div class="footer-date">2026-08-07 12:17</div>
+        </footer>
+      </div>
+    </div>
+    
+
+<script>
+  const PAGE_TITLES = {"en": {"overview": "Overview", "performance": "Performance Analytics", "segments": "Segment Analysis", "forecast": "Revenue Forecast", "insights": "Decision Insights"}, "tr": {"overview": "Genel Bakış", "performance": "Performans Analizleri", "segments": "Segment Analizi", "forecast": "Gelir Tahmini", "insights": "Karar Destek İçgörüleri"}};
+
+  function showPage(language, pageName) {
+    const languageRoot = document.querySelector(
+      `[data-language-content="${language}"]`
+    );
+
+    if (!languageRoot) {
+      return;
+    }
+
+    languageRoot
+      .querySelectorAll("[data-page]")
+      .forEach((page) => {
+        const isActive =
+          page.dataset.page === pageName;
+
+        page.hidden = !isActive;
+        page.classList.toggle("active", isActive);
+      });
+
+    languageRoot
+      .querySelectorAll("[data-page-button]")
+      .forEach((button) => {
+        button.classList.toggle(
+          "active",
+          button.dataset.pageButton === pageName
+        );
+      });
+
+    const title = languageRoot.querySelector(
+      "[data-topbar-title]"
+    );
+
+    if (title) {
+      title.textContent =
+        PAGE_TITLES[language][pageName]
+        || PAGE_TITLES[language].overview;
+    }
+
+    localStorage.setItem(
+      "dashboardPage",
+      pageName
+    );
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth"
+    });
+  }
+
+  function setLanguage(language) {
+    const supportedLanguages = ["en", "tr"];
+
+    if (!supportedLanguages.includes(language)) {
+      language = "en";
+    }
+
+    document.documentElement.lang = language;
+
+    document
+      .querySelectorAll("[data-language-content]")
+      .forEach((content) => {
+        content.hidden =
+          content.dataset.languageContent !== language;
+      });
+
+    document
+      .querySelectorAll("[data-language-button]")
+      .forEach((button) => {
+        const isActive =
+          button.dataset.languageButton === language;
+
+        button.classList.toggle(
+          "active",
+          isActive
+        );
+
+        button.setAttribute(
+          "aria-pressed",
+          isActive.toString()
+        );
+      });
+
+    localStorage.setItem(
+      "dashboardLanguage",
+      language
+    );
+
+    const savedPage =
+      localStorage.getItem("dashboardPage")
+      || "overview";
+
+    showPage(language, savedPage);
+  }
+
+  const savedLanguage =
+    localStorage.getItem("dashboardLanguage");
+
+  const browserLanguage =
+    navigator.language
+      .toLowerCase()
+      .startsWith("tr")
+        ? "tr"
+        : "en";
+
+  setLanguage(
+    savedLanguage || browserLanguage
+  );
+</script>
+
+</body>
+</html>

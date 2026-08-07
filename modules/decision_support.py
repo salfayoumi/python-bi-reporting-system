@@ -1,15 +1,21 @@
 """
 modules/decision_support.py
 
-Runs configurable rule-based and threshold-based decision logic
-on top of KPI results.
+Runs configurable rule-based business logic on KPI results.
 
-Produces localized, prioritized, and actionable business insights.
+Business rules are evaluated once into language-independent InsightSpec
+objects. Localization happens separately so English and Turkish reports
+cannot accidentally execute different business logic.
 """
 
-from dataclasses import dataclass
-from typing import Callable, Literal
+from dataclasses import dataclass, field
+from typing import Any, Literal
 
+from modules.domain import (
+    KPIBundle,
+    DEFAULT_THRESHOLDS,
+    DecisionThresholds,
+)
 from modules.i18n import (
     DEFAULT_LANGUAGE,
     normalize_language,
@@ -17,15 +23,7 @@ from modules.i18n import (
 )
 
 
-Severity = Literal[
-    "critical",
-    "warning",
-    "info",
-    "good",
-]
-
-Translator = Callable[..., str]
-
+Severity = Literal["critical", "warning", "info", "good"]
 
 SEVERITY_PRIORITY = {
     "critical": 100,
@@ -43,27 +41,22 @@ REPORT_ICONS = {
 
 
 @dataclass(frozen=True)
-class DecisionThresholds:
-    """Threshold configuration used by decision-support rules."""
+class InsightSpec:
+    """Language-independent representation of one business finding."""
 
-    revenue_sharp_decline_pct: float = -10.0
-    revenue_decline_pct: float = 0.0
-
-    win_rate_critical_pct: float = 40.0
-    win_rate_warning_pct: float = 55.0
-
-    churn_warning_pct: float = 10.0
-    churn_critical_pct: float = 15.0
-
-    product_concentration_pct: float = 60.0
-
-
-DEFAULT_THRESHOLDS = DecisionThresholds()
+    category_key: str
+    severity: Severity
+    title_key: str
+    detail_key: str
+    action_key: str
+    detail_params: dict[str, Any] = field(default_factory=dict)
+    priority_adjustment: int = 0
+    extra_detail_keys: tuple[tuple[str, dict[str, Any]], ...] = ()
 
 
 @dataclass(frozen=True)
 class Insight:
-    """Represents one localized and actionable business insight."""
+    """Localized, user-facing business insight."""
 
     category: str
     severity: Severity
@@ -73,536 +66,377 @@ class Insight:
     priority: int
 
 
-def _create_insight(
-    *,
-    category: str,
+def _priority(
     severity: Severity,
-    title: str,
-    detail: str,
-    action: str,
-    priority_adjustment: int = 0,
-) -> Insight:
-    """Create an insight with a consistent priority score."""
-
-    priority = (
-        SEVERITY_PRIORITY[severity]
-        + priority_adjustment
-    )
-
-    return Insight(
-        category=category,
-        severity=severity,
-        title=title,
-        detail=detail,
-        action=action,
-        priority=priority,
-    )
+    adjustment: int = 0,
+) -> int:
+    return SEVERITY_PRIORITY[severity] + adjustment
 
 
-def _analyze_revenue(
-    kpis: dict,
-    translator: Translator,
+def _revenue_spec(
+    kpis: KPIBundle,
     thresholds: DecisionThresholds,
-) -> Insight:
-    """Evaluate month-over-month revenue performance."""
+) -> InsightSpec:
+    revenue = kpis["revenue"]
+    status = revenue.get("mom_growth_status", "unavailable")
+    growth = revenue.get("mom_growth_pct")
 
-    mom_growth = kpis["revenue"]["mom_growth_pct"]
-
-    if (
-        mom_growth
-        < thresholds.revenue_sharp_decline_pct
-    ):
-        return _create_insight(
-            category=translator(
-                "category.revenue"
-            ),
-            severity="critical",
-            title=translator(
-                "revenue.sharp_decline.title"
-            ),
-            detail=translator(
-                "revenue.sharp_decline.detail",
-                value=mom_growth,
-            ),
-            action=translator(
-                "revenue.sharp_decline.action"
-            ),
-            priority_adjustment=10,
+    if status == "unavailable":
+        return InsightSpec(
+            "category.revenue",
+            "info",
+            "revenue.unavailable.title",
+            "revenue.unavailable.detail",
+            "revenue.unavailable.action",
         )
 
-    if mom_growth < thresholds.revenue_decline_pct:
-        return _create_insight(
-            category=translator(
-                "category.revenue"
-            ),
-            severity="warning",
-            title=translator(
-                "revenue.decline.title"
-            ),
-            detail=translator(
-                "revenue.decline.detail",
-                value=mom_growth,
-            ),
-            action=translator(
-                "revenue.decline.action"
-            ),
-            priority_adjustment=10,
+    if status == "from_zero":
+        return InsightSpec(
+            "category.revenue",
+            "good",
+            "revenue.from_zero.title",
+            "revenue.from_zero.detail",
+            "revenue.from_zero.action",
         )
 
-    if mom_growth == thresholds.revenue_decline_pct:
-        return _create_insight(
-            category=translator(
-                "category.revenue"
-            ),
-            severity="info",
-            title=translator(
-                "revenue.stable.title"
-            ),
-            detail=translator(
-                "revenue.stable.detail"
-            ),
-            action=translator(
-                "revenue.stable.action"
-            ),
+    if growth is None:
+        raise ValueError(
+            "mom_growth_pct cannot be None when "
+            f"mom_growth_status is {status!r}."
         )
 
-    return _create_insight(
-        category=translator(
-            "category.revenue"
-        ),
-        severity="good",
-        title=translator(
-            "revenue.growth.title"
-        ),
-        detail=translator(
-            "revenue.growth.detail",
-            value=mom_growth,
-        ),
-        action=translator(
-            "revenue.growth.action"
-        ),
+    if growth < thresholds.revenue_sharp_decline_pct:
+        return InsightSpec(
+            "category.revenue",
+            "critical",
+            "revenue.sharp_decline.title",
+            "revenue.sharp_decline.detail",
+            "revenue.sharp_decline.action",
+            {"value": growth},
+            10,
+        )
+
+    if growth < thresholds.revenue_decline_pct:
+        return InsightSpec(
+            "category.revenue",
+            "warning",
+            "revenue.decline.title",
+            "revenue.decline.detail",
+            "revenue.decline.action",
+            {"value": growth},
+            10,
+        )
+
+    if growth == thresholds.revenue_decline_pct:
+        return InsightSpec(
+            "category.revenue",
+            "info",
+            "revenue.stable.title",
+            "revenue.stable.detail",
+            "revenue.stable.action",
+        )
+
+    return InsightSpec(
+        "category.revenue",
+        "good",
+        "revenue.growth.title",
+        "revenue.growth.detail",
+        "revenue.growth.action",
+        {"value": growth},
     )
 
 
-def _analyze_sales(
-    kpis: dict,
-    translator: Translator,
+def _sales_spec(
+    kpis: KPIBundle,
     thresholds: DecisionThresholds,
-) -> Insight:
-    """Evaluate the sales win rate."""
-
+) -> InsightSpec:
     win_rate = kpis["sales"]["win_rate_pct"]
 
     if win_rate < thresholds.win_rate_critical_pct:
-        return _create_insight(
-            category=translator(
-                "category.sales"
-            ),
-            severity="critical",
-            title=translator(
-                "sales.low.title"
-            ),
-            detail=translator(
-                "sales.low.detail",
-                value=win_rate,
-            ),
-            action=translator(
-                "sales.low.action"
-            ),
+        return InsightSpec(
+            "category.sales",
+            "critical",
+            "sales.low.title",
+            "sales.low.detail",
+            "sales.low.action",
+            {
+                "value": win_rate,
+                "target": thresholds.win_rate_warning_pct,
+            },
         )
 
     if win_rate < thresholds.win_rate_warning_pct:
-        return _create_insight(
-            category=translator(
-                "category.sales"
-            ),
-            severity="warning",
-            title=translator(
-                "sales.below_target.title"
-            ),
-            detail=translator(
-                "sales.below_target.detail",
-                value=win_rate,
-            ),
-            action=translator(
-                "sales.below_target.action"
-            ),
+        return InsightSpec(
+            "category.sales",
+            "warning",
+            "sales.below_target.title",
+            "sales.below_target.detail",
+            "sales.below_target.action",
+            {
+                "value": win_rate,
+                "target": thresholds.win_rate_warning_pct,
+            },
         )
 
-    return _create_insight(
-        category=translator(
-            "category.sales"
-        ),
-        severity="good",
-        title=translator(
-            "sales.healthy.title"
-        ),
-        detail=translator(
-            "sales.healthy.detail",
-            value=win_rate,
-        ),
-        action=translator(
-            "sales.healthy.action"
-        ),
+    return InsightSpec(
+        "category.sales",
+        "good",
+        "sales.healthy.title",
+        "sales.healthy.detail",
+        "sales.healthy.action",
+        {"value": win_rate},
     )
 
 
-def _analyze_retention(
-    kpis: dict,
-    translator: Translator,
+def _order_status_spec(
+    kpis: KPIBundle,
     thresholds: DecisionThresholds,
-) -> Insight:
-    """Evaluate the churn-status rate."""
+) -> InsightSpec:
+    rate = kpis["sales"].get("churned_order_rate_pct")
 
-    churn_rate = kpis["sales"]["churn_rate_pct"]
+    if rate is None:
+        raise KeyError("sales.churned_order_rate_pct is required")
 
-    if churn_rate > thresholds.churn_critical_pct:
-        return _create_insight(
-            category=translator(
-                "category.retention"
-            ),
-            severity="critical",
-            title=translator(
-                "retention.high.title"
-            ),
-            detail=translator(
-                "retention.high.detail",
-                value=churn_rate,
-            ),
-            action=translator(
-                "retention.high.action"
-            ),
-            priority_adjustment=5,
+    if rate > thresholds.churned_order_critical_pct:
+        return InsightSpec(
+            "category.retention",
+            "critical",
+            "retention.high.title",
+            "retention.high.detail",
+            "retention.high.action",
+            {"value": rate},
+            5,
         )
 
-    if churn_rate > thresholds.churn_warning_pct:
-        return _create_insight(
-            category=translator(
-                "category.retention"
-            ),
-            severity="warning",
-            title=translator(
-                "retention.elevated.title"
-            ),
-            detail=translator(
-                "retention.elevated.detail",
-                value=churn_rate,
-            ),
-            action=translator(
-                "retention.elevated.action"
-            ),
-            priority_adjustment=5,
+    if rate > thresholds.churned_order_warning_pct:
+        return InsightSpec(
+            "category.retention",
+            "warning",
+            "retention.elevated.title",
+            "retention.elevated.detail",
+            "retention.elevated.action",
+            {"value": rate},
+            5,
         )
 
-    return _create_insight(
-        category=translator(
-            "category.retention"
-        ),
-        severity="good",
-        title=translator(
-            "retention.target.title"
-        ),
-        detail=translator(
-            "retention.target.detail",
-            value=churn_rate,
-        ),
-        action=translator(
-            "retention.target.action"
-        ),
+    return InsightSpec(
+        "category.retention",
+        "good",
+        "retention.target.title",
+        "retention.target.detail",
+        "retention.target.action",
+        {"value": rate},
     )
 
 
-def _analyze_product(
-    kpis: dict,
-    translator: Translator,
+def _product_spec(
+    kpis: KPIBundle,
     thresholds: DecisionThresholds,
-) -> Insight:
-    """Evaluate product revenue concentration."""
-
-    product_mix = kpis["products"].get(
-        "product_mix_pct",
-        {},
-    )
+) -> InsightSpec:
+    product_mix = kpis["products"].get("product_mix_pct", {})
 
     if not product_mix:
-        return _create_insight(
-            category=translator(
-                "category.product"
-            ),
-            severity="info",
-            title=translator(
-                "product.unavailable.title"
-            ),
-            detail=translator(
-                "product.unavailable.detail"
-            ),
-            action=translator(
-                "product.unavailable.action"
-            ),
+        return InsightSpec(
+            "category.product",
+            "info",
+            "product.unavailable.title",
+            "product.unavailable.detail",
+            "product.unavailable.action",
         )
 
-    top_product = max(
-        product_mix,
-        key=product_mix.get,
-    )
+    top_product = max(product_mix, key=product_mix.get)
+    share = product_mix[top_product]
 
-    top_product_share = product_mix[
-        top_product
-    ]
-
-    if (
-        top_product_share
-        > thresholds.product_concentration_pct
-    ):
-        return _create_insight(
-            category=translator(
-                "category.product"
-            ),
-            severity="warning",
-            title=translator(
-                "product.concentrated.title"
-            ),
-            detail=translator(
-                "product.concentrated.detail",
-                product=top_product,
-                share=top_product_share,
-            ),
-            action=translator(
-                "product.concentrated.action"
-            ),
+    if share > thresholds.product_concentration_pct:
+        return InsightSpec(
+            "category.product",
+            "warning",
+            "product.concentrated.title",
+            "product.concentrated.detail",
+            "product.concentrated.action",
+            {"product": top_product, "share": share},
         )
 
-    return _create_insight(
-        category=translator(
-            "category.product"
-        ),
-        severity="good",
-        title=translator(
-            "product.diversified.title"
-        ),
-        detail=translator(
-            "product.diversified.detail",
-            product=top_product,
-            share=top_product_share,
-        ),
-        action=translator(
-            "product.diversified.action"
-        ),
+    return InsightSpec(
+        "category.product",
+        "good",
+        "product.diversified.title",
+        "product.diversified.detail",
+        "product.diversified.action",
+        {"product": top_product, "share": share},
     )
 
 
-def _analyze_region(
-    kpis: dict,
-    translator: Translator,
-) -> Insight | None:
-    """Identify the leading regions by revenue and order value."""
-
+def _region_spec(kpis: KPIBundle) -> InsightSpec | None:
     regions = kpis["regions"]
+    revenue = regions.get("regional_revenue", {})
+    average = regions.get("regional_avg_order_value", {})
 
-    regional_revenue = regions.get(
-        "regional_revenue",
-        {},
-    )
-
-    regional_avg_order_value = regions.get(
-        "regional_avg_order_value",
-        {},
-    )
-
-    if not regional_revenue:
+    if not revenue:
         return None
 
-    top_revenue_region = max(
-        regional_revenue,
-        key=regional_revenue.get,
-    )
-
-    top_region_revenue = regional_revenue[
-        top_revenue_region
-    ]
-
-    detail_parts = [
-        translator(
+    top_revenue_region = max(revenue, key=revenue.get)
+    extra: list[tuple[str, dict[str, Any]]] = [
+        (
             "region.top_revenue",
-            region=top_revenue_region,
-            value=top_region_revenue,
+            {
+                "region": top_revenue_region,
+                "value": revenue[top_revenue_region],
+            },
         )
     ]
 
-    if regional_avg_order_value:
-        top_avg_region = max(
-            regional_avg_order_value,
-            key=regional_avg_order_value.get,
-        )
-
-        top_avg_value = (
-            regional_avg_order_value[
-                top_avg_region
-            ]
-        )
-
-        detail_parts.append(
-            translator(
+    if average:
+        top_average_region = max(average, key=average.get)
+        extra.append(
+            (
                 "region.top_average",
-                region=top_avg_region,
-                value=top_avg_value,
+                {
+                    "region": top_average_region,
+                    "value": average[top_average_region],
+                },
             )
         )
 
-    return _create_insight(
-        category=translator(
-            "category.region"
-        ),
-        severity="info",
-        title=translator(
-            "region.leaders.title"
-        ),
-        detail=" ".join(detail_parts),
-        action=translator(
-            "region.leaders.action"
-        ),
+    return InsightSpec(
+        "category.region",
+        "info",
+        "region.leaders.title",
+        "",
+        "region.leaders.action",
+        extra_detail_keys=tuple(extra),
     )
 
 
-def _analyze_trend(
-    kpis: dict,
-    translator: Translator,
-) -> Insight:
-    """Evaluate the long-term revenue trend."""
-
+def _trend_spec(kpis: KPIBundle) -> InsightSpec:
     trends = kpis["trends"]
+    revenue = kpis["revenue"]
+    direction = trends.get("trend_direction_code", "stable")
+    slope = trends["trend_slope"]
 
-    trend_direction = trends[
-        "trend_direction"
+    if direction == "growing":
+        severity: Severity = "good"
+        title_key = "trend.growing.title"
+        detail_key = "trend.growing.detail"
+        action_key = "trend.growing.action"
+    elif direction == "declining":
+        severity = "warning"
+        title_key = "trend.declining.title"
+        detail_key = "trend.declining.detail"
+        action_key = "trend.declining.action"
+    else:
+        severity = "info"
+        title_key = "trend.stable.title"
+        detail_key = "trend.stable.detail"
+        action_key = "trend.stable.action"
+
+    extras: list[tuple[str, dict[str, Any]]] = [
+        ("trend.horizon.base", {})
     ]
 
-    trend_slope = trends[
-        "trend_slope"
-    ]
+    mom_growth = revenue.get("mom_growth_pct")
+    mom_status = revenue.get("mom_growth_status")
 
-    if "Growing" in trend_direction:
-        return _create_insight(
-            category=translator(
-                "category.trend"
-            ),
-            severity="good",
-            title=translator(
-                "trend.growing.title"
-            ),
-            detail=translator(
-                "trend.growing.detail",
-                value=trend_slope,
-            ),
-            action=translator(
-                "trend.growing.action"
-            ),
+    if (
+        mom_growth is not None
+        and mom_status in {"growth", "decline", "stable"}
+    ):
+        extras.append(
+            ("trend.horizon.mom", {"value": mom_growth})
         )
 
-    if "Declining" in trend_direction:
-        return _create_insight(
-            category=translator(
-                "category.trend"
-            ),
-            severity="warning",
-            title=translator(
-                "trend.declining.title"
-            ),
-            detail=translator(
-                "trend.declining.detail",
-                value=trend_slope,
-            ),
-            action=translator(
-                "trend.declining.action"
-            ),
-        )
-
-    return _create_insight(
-        category=translator(
-            "category.trend"
-        ),
-        severity="info",
-        title=translator(
-            "trend.stable.title"
-        ),
-        detail=translator(
-            "trend.stable.detail",
-            value=trend_slope,
-        ),
-        action=translator(
-            "trend.stable.action"
-        ),
+    return InsightSpec(
+        "category.trend",
+        severity,
+        title_key,
+        detail_key,
+        action_key,
+        {"value": slope},
+        extra_detail_keys=tuple(extras),
     )
+
+
+def evaluate_rules(
+    kpis: KPIBundle,
+    thresholds: DecisionThresholds = DEFAULT_THRESHOLDS,
+) -> list[InsightSpec]:
+    """Evaluate all business rules once without localizing text."""
+
+    specs = [
+        _revenue_spec(kpis, thresholds),
+        _sales_spec(kpis, thresholds),
+        _order_status_spec(kpis, thresholds),
+        _product_spec(kpis, thresholds),
+        _trend_spec(kpis),
+    ]
+
+    regional = _region_spec(kpis)
+    if regional is not None:
+        specs.append(regional)
+
+    return sorted(
+        specs,
+        key=lambda item: _priority(
+            item.severity,
+            item.priority_adjustment,
+        ),
+        reverse=True,
+    )
+
+
+def localize_insights(
+    specs: list[InsightSpec],
+    language: str = DEFAULT_LANGUAGE,
+) -> list[Insight]:
+    """Render language-independent insight specs in one language."""
+
+    language = normalize_language(language)
+    insights: list[Insight] = []
+
+    for spec in specs:
+        if spec.detail_key:
+            detail_parts = [
+                translate(
+                    spec.detail_key,
+                    language,
+                    **spec.detail_params,
+                )
+            ]
+        else:
+            detail_parts = []
+
+        for key, params in spec.extra_detail_keys:
+            detail_parts.append(
+                translate(key, language, **params)
+            )
+
+        insights.append(
+            Insight(
+                category=translate(spec.category_key, language),
+                severity=spec.severity,
+                title=translate(spec.title_key, language),
+                detail=" ".join(detail_parts),
+                action=translate(spec.action_key, language),
+                priority=_priority(
+                    spec.severity,
+                    spec.priority_adjustment,
+                ),
+            )
+        )
+
+    return insights
 
 
 def analyze(
-    kpis: dict,
+    kpis: KPIBundle,
     language: str = DEFAULT_LANGUAGE,
     thresholds: DecisionThresholds = DEFAULT_THRESHOLDS,
 ) -> list[Insight]:
-    """
-    Convert KPI results into localized business insights.
+    """Compatibility wrapper: evaluate once and localize one language."""
 
-    Independent business rules generate insights, which are then
-    sorted from highest to lowest priority.
-    """
-
-    normalized_language = normalize_language(
-        language
-    )
-
-    def translator(
-        key: str,
-        **kwargs,
-    ) -> str:
-        return translate(
-            key,
-            normalized_language,
-            **kwargs,
-        )
-
-    insights = [
-        _analyze_revenue(
-            kpis,
-            translator,
-            thresholds,
-        ),
-        _analyze_sales(
-            kpis,
-            translator,
-            thresholds,
-        ),
-        _analyze_retention(
-            kpis,
-            translator,
-            thresholds,
-        ),
-        _analyze_product(
-            kpis,
-            translator,
-            thresholds,
-        ),
-        _analyze_trend(
-            kpis,
-            translator,
-        ),
-    ]
-
-    regional_insight = _analyze_region(
-        kpis,
-        translator,
-    )
-
-    if regional_insight is not None:
-        insights.append(
-            regional_insight
-        )
-
-    return sorted(
-        insights,
-        key=lambda insight: (
-            insight.priority
-        ),
-        reverse=True,
+    return localize_insights(
+        evaluate_rules(kpis, thresholds),
+        language,
     )
 
 
@@ -610,24 +444,13 @@ def format_report(
     insights: list[Insight],
     language: str = DEFAULT_LANGUAGE,
 ) -> str:
-    """Convert insight objects into a localized terminal report."""
+    """Convert localized insight objects into a terminal report."""
 
-    normalized_language = normalize_language(
-        language
-    )
-
-    def translator(key: str) -> str:
-        return translate(
-            key,
-            normalized_language,
-        )
+    language = normalize_language(language)
 
     lines = [
         "=" * 60,
-        (
-            f"  "
-            f"{translator('report.decision_support')}"
-        ),
+        f"  {translate('report.decision_support', language)}",
         "=" * 60,
         "",
     ]
@@ -640,19 +463,13 @@ def format_report(
 
         lines.extend(
             [
+                f"{icon}  [{insight.category}] {insight.title}",
                 (
-                    f"{icon}  "
-                    f"[{insight.category}] "
-                    f"{insight.title}"
-                ),
-                (
-                    f"   "
-                    f"{translator('report.detail')} : "
+                    f"   {translate('report.detail', language)} : "
                     f"{insight.detail}"
                 ),
                 (
-                    f"   "
-                    f"{translator('report.action')} : "
+                    f"   {translate('report.action', language)} : "
                     f"{insight.action}"
                 ),
                 "",

@@ -12,9 +12,16 @@ external business factors.
 import numpy as np
 import pandas as pd
 
+from modules.domain import (
+    KPIBundle,
+    ForecastReliability,
+    FORECAST_LOW_R2_THRESHOLD,
+    FORECAST_MODERATE_R2_THRESHOLD,
+    classify_trend,
+)
+
 
 DEFAULT_FORECAST_MONTHS = 3
-STABLE_TREND_TOLERANCE = 0.01
 
 REQUIRED_MONTHLY_COLUMNS = {
     "month",
@@ -23,6 +30,7 @@ REQUIRED_MONTHLY_COLUMNS = {
 
 FORECAST_ASSUMPTIONS = [
     "The forecast is based only on historical monthly revenue.",
+    "Missing calendar months are retained with zero revenue.",
     "The model assumes a linear relationship over time.",
     "Seasonality and external business factors are not included.",
     "Forecast values are directional estimates, not guarantees.",
@@ -33,21 +41,10 @@ def prepare_monthly_revenue(
     monthly_revenue: list[dict],
 ) -> pd.DataFrame:
     """
-    Convert monthly KPI records into a clean chronological DataFrame.
+    Convert monthly KPI records into a complete chronological DataFrame.
 
-    Expected input:
-        [
-            {
-                "month": "2024-01",
-                "revenue": 100000.0,
-            },
-            ...
-        ]
-
-    Raises:
-        ValueError:
-            If required columns are missing, the dataset is empty,
-            values are invalid, or fewer than two valid months exist.
+    Missing calendar months between the first and last observation are
+    added with zero revenue so the time axis remains accurate.
     """
 
     dataframe = pd.DataFrame(
@@ -111,32 +108,92 @@ def prepare_monthly_revenue(
             "revenue value(s) found."
         )
 
-    dataframe = (
-        dataframe
-        .sort_values("month")
-        .drop_duplicates(
-            subset=["month"],
-            keep="last",
-        )
-        .reset_index(
-            drop=True
-        )
+    dataframe["month_period"] = (
+        dataframe["month"]
+        .dt.to_period("M")
+    )
+
+    monthly_series = (
+        dataframe.groupby("month_period")[
+            "revenue"
+        ]
+        .sum()
+        .sort_index()
+    )
+
+    complete_periods = pd.period_range(
+        start=monthly_series.index.min(),
+        end=monthly_series.index.max(),
+        freq="M",
+    )
+
+    monthly_series = monthly_series.reindex(
+        complete_periods,
+        fill_value=0.0,
+    )
+
+    dataframe = pd.DataFrame(
+        {
+            "month": (
+                monthly_series.index
+                .to_timestamp()
+            ),
+            "revenue": (
+                monthly_series
+                .to_numpy(dtype=float)
+            ),
+        }
     )
 
     if len(dataframe) < 2:
         raise ValueError(
-            "At least two monthly revenue records "
-            "are required to create a linear forecast."
+            "At least two calendar months are required "
+            "to create a linear forecast."
         )
 
     return dataframe
 
 
+def _month_offsets(
+    months: pd.Series | pd.DatetimeIndex,
+    origin: pd.Timestamp,
+) -> np.ndarray:
+    """Return real calendar-month offsets from an origin month."""
+
+    periods = pd.DatetimeIndex(
+        months
+    ).to_period("M")
+
+    origin_period = origin.to_period("M")
+
+    return np.array(
+        [
+            (
+                period.year
+                - origin_period.year
+            )
+            * 12
+            + (
+                period.month
+                - origin_period.month
+            )
+            for period in periods
+        ],
+        dtype=float,
+    )
+
+
 def _calculate_r_squared(
     actual_values: np.ndarray,
     fitted_values: np.ndarray,
-) -> float:
-    """Calculate the coefficient of determination for the model."""
+) -> tuple[float, bool]:
+    """
+    Calculate R-squared and whether it is statistically interpretable.
+
+    A constant target series has no variance, so R-squared is undefined.
+    It is represented as 0.0 for backward-compatible display together
+    with an explicit interpretability flag.
+    """
 
     residuals = (
         actual_values
@@ -159,34 +216,43 @@ def _calculate_r_squared(
         )
     )
 
-    if total_sum_of_squares == 0:
-        return 1.0
+    if np.isclose(
+        total_sum_of_squares,
+        0.0,
+    ):
+        return 0.0, False
 
     return (
         1
         - residual_sum_of_squares
-        / total_sum_of_squares
+        / total_sum_of_squares,
+        True,
     )
+
+
+
+def _forecast_reliability(r_squared: float, interpretable: bool) -> str:
+    """Classify forecast explanatory power for business-facing output."""
+
+    if not interpretable:
+        return ForecastReliability.UNAVAILABLE.value
+    if r_squared < FORECAST_LOW_R2_THRESHOLD:
+        return ForecastReliability.LOW.value
+    if r_squared < FORECAST_MODERATE_R2_THRESHOLD:
+        return ForecastReliability.MODERATE.value
+    return ForecastReliability.HIGH.value
 
 
 def _determine_trend_direction(
     slope: float,
     average_monthly_revenue: float,
 ) -> str:
-    """Classify the fitted revenue trend."""
+    """Return the display label for the shared trend classification."""
 
-    trend_tolerance = (
-        average_monthly_revenue
-        * STABLE_TREND_TOLERANCE
-    )
-
-    if slope > trend_tolerance:
-        return "Growing"
-
-    if slope < -trend_tolerance:
-        return "Declining"
-
-    return "Stable"
+    return classify_trend(
+        slope,
+        average_monthly_revenue,
+    ).value.title()
 
 
 def _build_historical_records(
@@ -250,15 +316,7 @@ def build_linear_forecast(
     monthly_revenue: list[dict],
     forecast_months: int = DEFAULT_FORECAST_MONTHS,
 ) -> dict:
-    """
-    Create a linear revenue forecast for future months.
-
-    The model uses:
-
-        revenue = slope × month_index + intercept
-
-    Forecasted revenue values are limited to a minimum of zero.
-    """
+    """Create a calendar-aware linear revenue forecast."""
 
     if forecast_months < 1:
         raise ValueError(
@@ -269,13 +327,14 @@ def build_linear_forecast(
         monthly_revenue
     )
 
-    historical_count = len(
-        historical_data
+    origin_month = (
+        historical_data["month"]
+        .iloc[0]
     )
 
-    historical_indexes = np.arange(
-        historical_count,
-        dtype=float,
+    historical_indexes = _month_offsets(
+        historical_data["month"],
+        origin_month,
     )
 
     historical_revenue = (
@@ -297,7 +356,10 @@ def build_linear_forecast(
         + intercept
     )
 
-    r_squared = _calculate_r_squared(
+    (
+        r_squared,
+        r_squared_interpretable,
+    ) = _calculate_r_squared(
         historical_revenue,
         fitted_values,
     )
@@ -316,11 +378,9 @@ def build_linear_forecast(
         freq="MS",
     )
 
-    future_indexes = np.arange(
-        historical_count,
-        historical_count
-        + forecast_months,
-        dtype=float,
+    future_indexes = _month_offsets(
+        future_month_dates,
+        origin_month,
     )
 
     future_revenue = (
@@ -378,7 +438,15 @@ def build_linear_forecast(
                 float(r_squared),
                 4,
             ),
+            "r_squared_interpretable": (
+                r_squared_interpretable
+            ),
+            "reliability": _forecast_reliability(
+                float(r_squared),
+                r_squared_interpretable,
+            ),
             "direction": trend_direction,
+            "direction_code": trend_direction.casefold(),
         },
         "assumptions": (
             FORECAST_ASSUMPTIONS.copy()
@@ -387,7 +455,7 @@ def build_linear_forecast(
 
 
 def compute_revenue_forecast(
-    kpis: dict,
+    kpis: KPIBundle,
     forecast_months: int = DEFAULT_FORECAST_MONTHS,
 ) -> dict:
     """Generate a forecast from KPI-engine monthly revenue records."""

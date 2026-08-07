@@ -10,6 +10,7 @@ Run:
 
 from __future__ import annotations
 
+from html import escape
 from typing import Any
 
 import pandas as pd
@@ -18,10 +19,21 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from modules.decision_support import analyze
+from modules.decision_support import analyze, DEFAULT_THRESHOLDS
 from modules.forecast import compute_revenue_forecast
-from modules.kpi_engine import compute_all_kpis, load_data
+from modules.i18n import translate
+from modules.kpi_engine import compute_analysis, load_data
 from modules.segment_analysis import compute_segment_analysis
+from modules.theme import (
+    ACCENT_COLOR,
+    HIGHLIGHT_COLOR,
+    PALETTE,
+    PRIMARY_COLOR,
+    SECONDARY_COLOR,
+    SEVERITY_COLORS,
+    STATUS_COLORS,
+    TREND_COLOR,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -34,32 +46,6 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-PRIMARY_COLOR = "#2D6A9F"
-SECONDARY_COLOR = "#48A999"
-ACCENT_COLOR = "#E8855A"
-TREND_COLOR = "#8E6BBF"
-HIGHLIGHT_COLOR = "#E8C25A"
-
-PALETTE = [
-    PRIMARY_COLOR,
-    SECONDARY_COLOR,
-    ACCENT_COLOR,
-    TREND_COLOR,
-    HIGHLIGHT_COLOR,
-]
-
-STATUS_COLORS = {
-    "Won": SECONDARY_COLOR,
-    "Lost": ACCENT_COLOR,
-    "Churned": TREND_COLOR,
-}
-
-SEVERITY_COLORS = {
-    "critical": "#E8855A",
-    "warning": "#E8C25A",
-    "info": "#2D6A9F",
-    "good": "#48A999",
-}
 
 SEVERITY_ICONS = {
     "critical": "🔴",
@@ -69,232 +55,86 @@ SEVERITY_ICONS = {
 }
 
 
-UI_TEXT = {
-    "en": {
-        "page_title": "Python BI Reporting & Decision Support Dashboard",
-        "page_caption": (
-            "Interactive CRM analytics with live filtering, KPI reporting, "
-            "forecasting, and automated decision support."
-        ),
-        "filters": "Filters",
-        "language": "Language",
-        "region": "Region",
-        "year": "Year",
-        "segment": "Customer Segment",
-        "product": "Product",
-        "all": "All",
-        "scope": "Analysis Scope",
-        "full_dataset": "Complete CRM dataset",
-        "orders": "orders",
-        "customers": "customers",
-        "date_range": "Date range",
-        "kpis": "Key Performance Indicators",
-        "total_revenue": "Total Revenue",
-        "avg_order_value": "Average Order Value",
-        "win_rate": "Win Rate",
-        "churn_rate": "Churn-Status Rate",
-        "mom_growth": "MoM Growth",
-        "overall_trend": "Overall Trend",
-        "matching_orders": "Matching Orders",
-        "matching_customers": "Matching Customers",
-        "analytics": "Visual Analytics",
-        "monthly_revenue": "Monthly Revenue Trend",
-        "regional_revenue": "Revenue by Region",
-        "product_mix": "Revenue by Product",
-        "status_breakdown": "Order Status Breakdown",
-        "am_performance": "Account Manager Performance",
-        "segment_performance": "Customer Segment Performance",
-        "forecast": "Three-Month Revenue Forecast",
-        "revenue": "Revenue",
-        "count": "Count",
-        "account_manager": "Account Manager",
-        "win_rate_axis": "Win Rate (%)",
-        "forecast_model": "Forecast Model",
-        "slope": "Monthly Slope",
-        "r_squared": "R²",
-        "direction": "Direction",
-        "forecast_table": "Forecast Values",
-        "month": "Month",
-        "forecast_revenue": "Forecast Revenue",
-        "decision_support": "Decision Support Insights",
-        "detail": "Detail",
-        "action": "Action",
-        "segment_summary": "Segment Summary",
-        "highest_revenue_segment": "Highest Revenue Segment",
-        "highest_revenue_per_customer": "Highest Revenue per Customer",
-        "highest_win_rate_segment": "Highest Win Rate Segment",
-        "lowest_churn_rate_segment": "Lowest Churn Rate Segment",
-        "no_forecast": (
-            "A forecast could not be created for this filter combination "
-            "because at least two monthly revenue records are required."
-        ),
-        "no_data": "No data matched the selected filters.",
-        "footer": "Internship Project · KivaCRM · Developed by Salsabeel Alfayoumi",
-        "actual_revenue": "Actual Revenue",
-        "linear_trend": "Linear Trend",
-        "forecast_label": "Forecast",
-    },
-    "tr": {
-        "page_title": "Python İş Zekâsı Raporlama ve Karar Destek Paneli",
-        "page_caption": (
-            "Canlı filtreleme, KPI raporlama, gelir tahmini ve otomatik "
-            "karar desteği sunan etkileşimli CRM analitiği."
-        ),
-        "filters": "Filtreler",
-        "language": "Dil",
-        "region": "Bölge",
-        "year": "Yıl",
-        "segment": "Müşteri Segmenti",
-        "product": "Ürün",
-        "all": "Tümü",
-        "scope": "Analiz Kapsamı",
-        "full_dataset": "Tüm CRM veri seti",
-        "orders": "sipariş",
-        "customers": "müşteri",
-        "date_range": "Tarih aralığı",
-        "kpis": "Temel Performans Göstergeleri",
-        "total_revenue": "Toplam Gelir",
-        "avg_order_value": "Ortalama Sipariş Değeri",
-        "win_rate": "Kazanma Oranı",
-        "churn_rate": "Churn Durum Oranı",
-        "mom_growth": "Aylık Gelir Değişimi",
-        "overall_trend": "Genel Trend",
-        "matching_orders": "Eşleşen Siparişler",
-        "matching_customers": "Eşleşen Müşteriler",
-        "analytics": "Görsel Analizler",
-        "monthly_revenue": "Aylık Gelir Trendi",
-        "regional_revenue": "Bölgelere Göre Gelir",
-        "product_mix": "Ürünlere Göre Gelir",
-        "status_breakdown": "Sipariş Durum Dağılımı",
-        "am_performance": "Müşteri Temsilcisi Performansı",
-        "segment_performance": "Müşteri Segmenti Performansı",
-        "forecast": "Üç Aylık Gelir Tahmini",
-        "revenue": "Gelir",
-        "count": "Adet",
-        "account_manager": "Müşteri Temsilcisi",
-        "win_rate_axis": "Kazanma Oranı (%)",
-        "forecast_model": "Tahmin Modeli",
-        "slope": "Aylık Eğim",
-        "r_squared": "R²",
-        "direction": "Yön",
-        "forecast_table": "Tahmin Değerleri",
-        "month": "Ay",
-        "forecast_revenue": "Tahmini Gelir",
-        "decision_support": "Karar Destek İçgörüleri",
-        "detail": "Detay",
-        "action": "Aksiyon",
-        "segment_summary": "Segment Özeti",
-        "highest_revenue_segment": "En Yüksek Gelir Segmenti",
-        "highest_revenue_per_customer": "Müşteri Başına En Yüksek Gelir",
-        "highest_win_rate_segment": "En Yüksek Kazanma Oranı",
-        "lowest_churn_rate_segment": "En Düşük Churn Oranı",
-        "no_forecast": (
-            "Bu filtre kombinasyonu için tahmin oluşturulamadı. "
-            "Doğrusal tahmin için en az iki aylık gelir kaydı gereklidir."
-        ),
-        "no_data": "Seçilen filtrelerle eşleşen veri bulunamadı.",
-        "footer": "Staj Projesi · KivaCRM · Geliştiren: Salsabeel Alfayoumi",
-        "actual_revenue": "Gerçekleşen Gelir",
-        "linear_trend": "Doğrusal Trend",
-        "forecast_label": "Tahmin",
-    },
-}
 
 
 # ---------------------------------------------------------------------------
 # Styling and shared helpers
 # ---------------------------------------------------------------------------
 def apply_custom_css() -> None:
-    """Apply lightweight dashboard styling."""
+    """
+    Apply lightweight theme-neutral dashboard styling.
+
+    Colors intentionally use inherited text and translucent surfaces so
+    Streamlit's native light/dark theme switch remains readable.
+    """
 
     st.markdown(
         """
         <style>
-            .stApp {
-                background: #F4F7FB;
-            }
-
-            [data-testid="stSidebar"] {
-                background: #EAF0F7;
-                border-right: 1px solid #D4DEEA;
-            }
-
             .block-container {
                 padding-top: 2rem;
                 padding-bottom: 3rem;
                 max-width: 1500px;
             }
 
-            h1, h2, h3 {
-                color: #173F63;
-            }
-
-            div[data-testid="stMetric"] {
-                background: white;
-                border: 1px solid #DCE5EF;
-                border-radius: 14px;
-                padding: 16px 18px;
-                box-shadow: 0 5px 16px rgba(23, 63, 99, 0.06);
-            }
-
-            div[data-testid="stMetricLabel"] {
-                color: #62758A;
-            }
-
             .scope-card {
-                background: #E7F1FB;
-                border: 1px solid #CFE0F2;
+                background: rgba(45, 106, 159, 0.12);
+                border: 1px solid rgba(45, 106, 159, 0.28);
                 border-radius: 12px;
                 padding: 14px 18px;
-                color: #174A78;
+                color: inherit;
                 margin-bottom: 1rem;
             }
 
-            .summary-card {
-                background: white;
-                border: 1px solid #DCE5EF;
+            .summary-card,
+            .insight-card {
+                background: rgba(128, 128, 128, 0.06);
+                border: 1px solid rgba(128, 128, 128, 0.24);
                 border-radius: 12px;
                 padding: 14px 16px;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+            }
+
+            .summary-card {
                 min-height: 112px;
-                box-shadow: 0 4px 12px rgba(23, 63, 99, 0.05);
+            }
+
+            .insight-card {
+                margin-bottom: 12px;
             }
 
             .summary-label {
-                color: #6A7D91;
+                color: inherit;
+                opacity: 0.72;
                 font-size: 0.82rem;
                 margin-bottom: 8px;
             }
 
-            .summary-value {
-                color: #173F63;
-                font-size: 1.15rem;
+            .summary-value,
+            .insight-title {
+                color: inherit;
                 font-weight: 700;
             }
 
-            .insight-card {
-                background: white;
-                border: 1px solid #DCE5EF;
-                border-radius: 12px;
-                padding: 14px 16px;
-                margin-bottom: 12px;
-                box-shadow: 0 4px 12px rgba(23, 63, 99, 0.05);
+            .summary-value {
+                font-size: 1.15rem;
             }
 
             .insight-title {
-                color: #173F63;
                 font-size: 1rem;
-                font-weight: 700;
                 margin-bottom: 8px;
             }
 
             .insight-text {
-                color: #435970;
+                color: inherit;
+                opacity: 0.86;
                 line-height: 1.5;
                 margin: 4px 0;
             }
 
             .footer {
-                color: #7A8DA1;
+                color: inherit;
+                opacity: 0.68;
                 text-align: center;
                 font-size: 0.85rem;
                 padding-top: 2rem;
@@ -306,9 +146,12 @@ def apply_custom_css() -> None:
 
 
 def text(language: str, key: str) -> str:
-    """Return one interface label."""
+    """Return dashboard UI text from the central translation source."""
 
-    return UI_TEXT[language][key]
+    return translate(
+        f"dashboard.{key}",
+        language,
+    )
 
 
 def format_currency(value: float, compact: bool = False) -> str:
@@ -332,12 +175,15 @@ def clean_plotly_figure(
     height: int = 430,
     showlegend: bool = True,
 ) -> go.Figure:
-    """Apply consistent Streamlit-friendly Plotly styling."""
+    """
+    Apply layout details while leaving colors to Streamlit's active theme.
+
+    st.plotly_chart uses the Streamlit Plotly theme by default, so explicit
+    white backgrounds or dark text colors would break dark-mode support.
+    """
 
     figure.update_layout(
         height=height,
-        paper_bgcolor="white",
-        plot_bgcolor="white",
         margin={
             "l": 55,
             "r": 35,
@@ -346,7 +192,6 @@ def clean_plotly_figure(
         },
         font={
             "family": "Segoe UI, Arial, sans-serif",
-            "color": "#173F63",
         },
         showlegend=showlegend,
         legend={
@@ -355,10 +200,6 @@ def clean_plotly_figure(
             "y": 1.02,
             "xanchor": "left",
             "x": 0,
-        },
-        hoverlabel={
-            "bgcolor": "white",
-            "font_color": "#173F63",
         },
     )
 
@@ -370,18 +211,11 @@ def clean_plotly_figure(
 
     figure.update_yaxes(
         automargin=True,
-        gridcolor="rgba(23,63,99,0.10)",
+        showgrid=True,
         zeroline=False,
     )
 
     return figure
-
-
-@st.cache_data
-def load_source_data() -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Load source datasets once and cache them for Streamlit reruns."""
-
-    return load_data()
 
 
 def sorted_text_values(
@@ -397,6 +231,14 @@ def sorted_text_values(
         .unique()
         .tolist()
     )
+
+
+
+@st.cache_data
+def load_source_data() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Load source datasets once and cache them for Streamlit reruns."""
+
+    return load_data()
 
 
 def build_filter_options(
@@ -780,7 +622,7 @@ def segment_performance_figure(
             y=dataframe["win_rate"],
             mode="lines+markers+text",
             text=[
-                f"{value:.1f}%"
+                f"{value:.2f}%"
                 for value in dataframe["win_rate"]
             ],
             textposition="top center",
@@ -973,8 +815,8 @@ def render_segment_summary(
             st.markdown(
                 f"""
                 <div class="summary-card">
-                    <div class="summary-label">{label}</div>
-                    <div class="summary-value">{value}</div>
+                    <div class="summary-label">{escape(str(label))}</div>
+                    <div class="summary-value">{escape(str(value))}</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -1003,15 +845,15 @@ def render_insights(
             <div class="insight-card"
                  style="border-left: 5px solid {color};">
                 <div class="insight-title">
-                    {icon} [{insight.category}] {insight.title}
+                    {escape(str(icon))} [{escape(str(insight.category))}] {escape(str(insight.title))}
                 </div>
                 <div class="insight-text">
-                    <strong>{text(language, "detail")}:</strong>
-                    {insight.detail}
+                    <strong>{escape(str(text(language, "detail")))}:</strong>
+                    {escape(str(insight.detail))}
                 </div>
                 <div class="insight-text">
-                    <strong>▶ {text(language, "action")}:</strong>
-                    {insight.action}
+                    <strong>▶ {escape(str(text(language, "action")))}:</strong>
+                    {escape(str(insight.action))}
                 </div>
             </div>
             """,
@@ -1024,7 +866,14 @@ def main() -> None:
 
     apply_custom_css()
 
-    raw_orders, raw_customers = load_source_data()
+    try:
+        raw_orders, raw_customers = load_source_data()
+    except ValueError:
+        st.error(
+            "CRM data could not be loaded. "
+            "Please check the project data files."
+        )
+        st.stop()
 
     options = build_filter_options(
         raw_orders,
@@ -1112,23 +961,24 @@ def main() -> None:
     )
 
     try:
-        kpis = compute_all_kpis(
+        analysis = compute_analysis(
             orders=raw_orders,
             customers=raw_customers,
             region=selected_region,
             year=selected_year,
             segment=selected_segment,
             product=selected_product,
-            print_validation_report=False,
+            print_validation=False,
         )
+        kpis = analysis.kpis
     except ValueError as error:
         st.error(
             f"{text(language, 'no_data')} {error}"
         )
         st.stop()
 
-    filtered_orders = kpis["_data"]["orders"]
-    filtered_customers = kpis["_data"]["customers"]
+    filtered_orders = analysis.orders
+    filtered_customers = analysis.customers
 
     segment_analysis = compute_segment_analysis(
         orders=filtered_orders,
@@ -1170,15 +1020,15 @@ def main() -> None:
     st.markdown(
         f"""
         <div class="scope-card">
-            <strong>{scope_name}</strong><br>
+            <strong>{escape(str(scope_name))}</strong><br>
             {kpis['meta']['total_orders']:,}
-            {text(language, 'orders')}
+            {escape(str(text(language, 'orders')))}
             &nbsp; · &nbsp;
-            {kpis['meta']['total_customers']:,}
-            {text(language, 'customers')}
+            {kpis['meta']['active_customers']:,}
+            {escape(str(text(language, 'customers')))}
             &nbsp; · &nbsp;
-            {text(language, 'date_range')}:
-            {kpis['meta']['date_range']}
+            {escape(str(text(language, 'date_range')))}:
+            {escape(str(kpis['meta']['date_range']))}
         </div>
         """,
         unsafe_allow_html=True,
@@ -1201,7 +1051,9 @@ def main() -> None:
             compact=True,
         ),
         delta=(
-            f"{revenue['mom_growth_pct']:+.1f}% MoM"
+            f"{revenue['mom_growth_pct']:+.2f}% MoM"
+            if revenue["mom_growth_pct"] is not None
+            else revenue.get("mom_growth_status", "Unavailable")
         ),
     )
 
@@ -1220,9 +1072,9 @@ def main() -> None:
 
     first_row[3].metric(
         text(language, "churn_rate"),
-        f"{sales['churn_rate_pct']:.2f}%",
+        f"{sales['churned_order_rate_pct']:.2f}%",
         delta=(
-            f"{sales['churn_rate_pct'] - 10:+.1f}% "
+            f"{sales['churned_order_rate_pct'] - DEFAULT_THRESHOLDS.churned_order_warning_pct:+.2f}% "
             "vs target"
         ),
         delta_color="inverse",
@@ -1232,7 +1084,11 @@ def main() -> None:
 
     second_row[0].metric(
         text(language, "mom_growth"),
-        f"{revenue['mom_growth_pct']:+.2f}%",
+        (
+            f"{revenue['mom_growth_pct']:+.2f}%"
+            if revenue["mom_growth_pct"] is not None
+            else revenue.get("mom_growth_status", "Unavailable")
+        ),
     )
 
     second_row[1].metric(
@@ -1268,7 +1124,7 @@ def main() -> None:
             kpis,
             language,
         ),
-        use_container_width=True,
+        width="stretch",
         config={
             "displaylogo": False,
         },
@@ -1282,7 +1138,7 @@ def main() -> None:
                 kpis,
                 language,
             ),
-            use_container_width=True,
+            width="stretch",
             config={
                 "displaylogo": False,
             },
@@ -1294,7 +1150,7 @@ def main() -> None:
                 kpis,
                 language,
             ),
-            use_container_width=True,
+            width="stretch",
             config={
                 "displaylogo": False,
             },
@@ -1308,7 +1164,7 @@ def main() -> None:
                 filtered_orders,
                 language,
             ),
-            use_container_width=True,
+            width="stretch",
             config={
                 "displaylogo": False,
             },
@@ -1320,7 +1176,7 @@ def main() -> None:
                 filtered_orders,
                 language,
             ),
-            use_container_width=True,
+            width="stretch",
             config={
                 "displaylogo": False,
             },
@@ -1331,7 +1187,7 @@ def main() -> None:
             segment_analysis,
             language,
         ),
-        use_container_width=True,
+        width="stretch",
         config={
             "displaylogo": False,
         },
@@ -1369,14 +1225,33 @@ def main() -> None:
             f"{forecast_model['slope']:,.2f}",
         )
 
-        model_columns[2].metric(
-            text(language, "r_squared"),
-            f"{forecast_model['r_squared']:.4f}",
+        r_squared_display = (
+            f"{forecast_model['r_squared']:.4f}"
+            if forecast_model.get(
+                "r_squared_interpretable",
+                True,
+            )
+            else "N/A"
         )
 
+        model_columns[2].metric(
+            text(language, "r_squared"),
+            r_squared_display,
+        )
+
+        reliability = forecast_model.get(
+            "reliability",
+            "unavailable",
+        )
         model_columns[3].metric(
-            text(language, "direction"),
-            forecast_model["direction"],
+            translate(
+                "forecast.reliability.label",
+                language,
+            ),
+            translate(
+                f"forecast.reliability.{reliability}",
+                language,
+            ),
         )
 
         st.plotly_chart(
@@ -1384,7 +1259,7 @@ def main() -> None:
                 revenue_forecast,
                 language,
             ),
-            use_container_width=True,
+            width="stretch",
             config={
                 "displaylogo": False,
             },
@@ -1414,14 +1289,14 @@ def main() -> None:
 
         st.dataframe(
             forecast_table,
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 
     st.markdown(
         f"""
         <div class="footer">
-            {text(language, "footer")}
+            {escape(str(text(language, "footer")))}
         </div>
         """,
         unsafe_allow_html=True,

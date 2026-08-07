@@ -13,8 +13,9 @@ from pathlib import Path
 import pandas as pd
 
 
-DEFAULT_ORDERS_PATH = Path("data/orders.csv")
-DEFAULT_CUSTOMERS_PATH = Path("data/customers.csv")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_ORDERS_PATH = PROJECT_ROOT / "data" / "orders.csv"
+DEFAULT_CUSTOMERS_PATH = PROJECT_ROOT / "data" / "customers.csv"
 
 STATUS_WON = "Won"
 STATUS_LOST = "Lost"
@@ -54,17 +55,13 @@ def _filter_orders_by_status(
 def _calculate_percentage(
     numerator: float,
     denominator: float,
-) -> float:
-    """Calculate a percentage safely."""
+) -> float | None:
+    """Calculate a percentage, returning None when it is not measurable."""
 
     if denominator == 0:
-        return 0.0
+        return None
 
-    return (
-        numerator
-        / denominator
-        * 100
-    )
+    return numerator / denominator * 100
 
 
 def _resolve_segment_data(
@@ -113,7 +110,7 @@ def calculate_segment_performance(
         - revenue per customer
         - average order value
         - win rate
-        - churn rate
+        - churned-order rate
         - top product
     """
 
@@ -233,11 +230,11 @@ def calculate_segment_performance(
             company_total_revenue,
         )
 
-        revenue_per_customer = (
+        revenue_per_active_customer = (
             total_revenue
-            / customer_count
-            if customer_count
-            else 0.0
+            / active_customer_count
+            if active_customer_count
+            else None
         )
 
         product_revenue = (
@@ -272,26 +269,43 @@ def calculate_segment_performance(
                 total_revenue,
                 2,
             ),
-            "revenue_share_pct": round(
-                revenue_share,
-                2,
+            "share_of_selection_pct": (
+                round(revenue_share, 2)
+                if revenue_share is not None
+                else None
             ),
-            "revenue_per_customer": round(
-                revenue_per_customer,
-                2,
+            "revenue_per_active_customer": (
+                round(revenue_per_active_customer, 2)
+                if revenue_per_active_customer is not None
+                else None
+            ),
+            # Compatibility aliases for older presentation layers.
+            "revenue_share_pct": (
+                round(revenue_share, 2)
+                if revenue_share is not None
+                else None
+            ),
+            "revenue_per_customer": (
+                round(revenue_per_active_customer, 2)
+                if revenue_per_active_customer is not None
+                else None
             ),
             "avg_order_value": round(
                 average_order_value,
                 2,
             ),
-            "win_rate_pct": round(
-                win_rate,
-                2,
+            "win_rate_pct": (
+                round(win_rate, 2)
+                if win_rate is not None
+                else None
             ),
-            "churn_rate_pct": round(
-                churn_rate,
-                2,
+            "churned_order_rate_pct": (
+                round(churn_rate, 2)
+                if churn_rate is not None
+                else None
             ),
+            # Compatibility alias; this is not customer churn.
+            
             "top_product": top_product,
         }
 
@@ -301,7 +315,7 @@ def calculate_segment_performance(
 def summarize_segment_performance(
     segment_results: dict,
 ) -> dict:
-    """Identify the leading segment for key business metrics."""
+    """Identify leading segments using only measurable metrics."""
 
     if not segment_results:
         return {
@@ -311,62 +325,25 @@ def summarize_segment_performance(
             "lowest_churn_rate_segment": "N/A",
         }
 
-    highest_revenue_segment = max(
-        segment_results,
-        key=lambda segment: (
-            segment_results[
-                segment
-            ][
-                "total_revenue"
-            ]
-        ),
-    )
-
-    highest_revenue_per_customer_segment = max(
-        segment_results,
-        key=lambda segment: (
-            segment_results[
-                segment
-            ][
-                "revenue_per_customer"
-            ]
-        ),
-    )
-
-    highest_win_rate_segment = max(
-        segment_results,
-        key=lambda segment: (
-            segment_results[
-                segment
-            ][
-                "win_rate_pct"
-            ]
-        ),
-    )
-
-    lowest_churn_rate_segment = min(
-        segment_results,
-        key=lambda segment: (
-            segment_results[
-                segment
-            ][
-                "churn_rate_pct"
-            ]
-        ),
-    )
+    def best(metric: str, *, reverse: bool = True) -> str:
+        eligible = {
+            name: values[metric]
+            for name, values in segment_results.items()
+            if values.get(metric) is not None
+        }
+        if not eligible:
+            return "N/A"
+        chooser = max if reverse else min
+        return chooser(eligible, key=eligible.get)
 
     return {
-        "highest_revenue_segment": (
-            highest_revenue_segment
+        "highest_revenue_segment": best("total_revenue"),
+        "highest_revenue_per_customer_segment": best(
+            "revenue_per_active_customer"
         ),
-        "highest_revenue_per_customer_segment": (
-            highest_revenue_per_customer_segment
-        ),
-        "highest_win_rate_segment": (
-            highest_win_rate_segment
-        ),
-        "lowest_churn_rate_segment": (
-            lowest_churn_rate_segment
+        "highest_win_rate_segment": best("win_rate_pct"),
+        "lowest_churn_rate_segment": best(
+            "churned_order_rate_pct", reverse=False
         ),
     }
 

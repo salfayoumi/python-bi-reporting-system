@@ -19,10 +19,14 @@ Outputs:
 
 import argparse
 
-from modules.decision_support import analyze, format_report
+from modules.decision_support import (
+    evaluate_rules,
+    format_report,
+    localize_insights,
+)
 from modules.excel_exporter import generate_excel_report
 from modules.forecast import compute_revenue_forecast
-from modules.kpi_engine import compute_all_kpis
+from modules.kpi_engine import compute_analysis
 from modules.report_generator import generate_html_report
 from modules.segment_analysis import compute_segment_analysis
 from modules.visualizer import generate_bilingual_charts
@@ -93,8 +97,9 @@ def print_filter_summary(
     filters: dict,
     total_orders: int,
     total_customers: int,
+    active_customers: int,
 ) -> None:
-    """Print active CLI filters and resulting dataset size."""
+    """Print active CLI filters and clearly defined scope sizes."""
 
     print("\n🔎 Analysis Scope")
     print("-" * SEPARATOR_WIDTH)
@@ -113,8 +118,12 @@ def print_filter_summary(
         f"{total_orders:,}"
     )
     print(
-        f"   Matching Customers: "
+        f"   Customer Population: "
         f"{total_customers:,}"
+    )
+    print(
+        f"   Active Customers   : "
+        f"{active_customers:,}"
     )
 
 
@@ -136,13 +145,16 @@ def print_kpi_summary(kpis: dict) -> None:
         f"   Avg Order Value : "
         f"${revenue['avg_order_value']:,.2f}"
     )
-    print(
-        f"   MoM Growth      : "
-        f"{revenue['mom_growth_pct']:+.1f}%"
+    mom_growth = revenue["mom_growth_pct"]
+    mom_display = (
+        f"{mom_growth:+.2f}%"
+        if mom_growth is not None
+        else revenue.get("mom_growth_status", "Unavailable")
     )
+    print(f"   MoM Growth      : {mom_display}")
     print(
         f"   Win Rate        : "
-        f"{sales['win_rate_pct']}%"
+        f"{sales['win_rate_pct']:.2f}%"
     )
     print(
         f"   Trend           : "
@@ -165,7 +177,7 @@ def print_segment_summary(
         f"{summary['highest_revenue_segment']}"
     )
     print(
-        "   Highest Revenue per Customer Segment: "
+        "   Highest Revenue per Active Customer Segment: "
         f"{summary['highest_revenue_per_customer_segment']}"
     )
     print(
@@ -173,7 +185,7 @@ def print_segment_summary(
         f"{summary['highest_win_rate_segment']}"
     )
     print(
-        "   Lowest Churn Rate Segment           : "
+        "   Lowest Churned-Order Rate Segment   : "
         f"{summary['lowest_churn_rate_segment']}"
     )
 
@@ -200,9 +212,15 @@ def print_forecast_summary(
         f"   Monthly Slope    : "
         f"{model['slope']:,.2f}"
     )
-    print(
-        f"   R-squared        : "
+    r2_display = (
         f"{model['r_squared']:.4f}"
+        if model.get("r_squared_interpretable", True)
+        else "N/A (constant series)"
+    )
+    print(f"   R-squared        : {r2_display}")
+    print(
+        f"   Reliability      : "
+        f"{model.get('reliability', 'unavailable').title()}"
     )
 
     print("\n   Forecasted Revenue:")
@@ -213,7 +231,10 @@ def print_forecast_summary(
             f"${forecast_item['forecast_revenue']:,.2f}"
         )
 
-    if model["r_squared"] < 0.1:
+    if (
+        not model.get("r_squared_interpretable", True)
+        or model["r_squared"] < 0.1
+    ):
         print(
             "\n   Note: The linear model has weak "
             "explanatory power. Forecast values should "
@@ -254,13 +275,14 @@ def main() -> None:
     print("\n📂 Loading and validating datasets...")
 
     try:
-        kpis = compute_all_kpis(
+        analysis = compute_analysis(
             region=args.region,
             year=args.year,
             segment=args.segment,
             product=args.product,
         )
-    except ValueError as error:
+        kpis = analysis.kpis
+    except (ValueError, FileNotFoundError) as error:
         print(f"\n❌ Unable to continue: {error}")
         raise SystemExit(1) from error
 
@@ -270,12 +292,13 @@ def main() -> None:
         kpis["filters"],
         kpis["meta"]["total_orders"],
         kpis["meta"]["total_customers"],
+        kpis["meta"]["active_customers"],
     )
 
     print_kpi_summary(kpis)
 
-    filtered_orders = kpis["_data"]["orders"]
-    filtered_customers = kpis["_data"]["customers"]
+    filtered_orders = analysis.orders
+    filtered_customers = analysis.customers
 
     # Step 2 — Customer-segment analysis
     print("\n👥 Computing customer segment analysis...")
@@ -314,18 +337,21 @@ def main() -> None:
         kpis,
         segment_analysis,
         revenue_forecast,
+        orders=filtered_orders,
     )
 
     # Step 5 — Decision-support analysis
     print("\n🧠 Running decision support engine...")
 
+    insight_specs = evaluate_rules(kpis)
+
     insights_by_language = {
-        "en": analyze(
-            kpis,
+        "en": localize_insights(
+            insight_specs,
             language="en",
         ),
-        "tr": analyze(
-            kpis,
+        "tr": localize_insights(
+            insight_specs,
             language="tr",
         ),
     }

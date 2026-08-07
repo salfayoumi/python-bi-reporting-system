@@ -27,3 +27,5 @@ dist/
 
 # Logs
 *.log
+.streamlit/secrets.toml
+*.pyc

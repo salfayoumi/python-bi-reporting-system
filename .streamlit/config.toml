@@ -1,0 +1,19 @@
+[browser]
+gatherUsageStats = false
+
+[theme.light]
+primaryColor = "#2D6A9F"
+backgroundColor = "#F4F7FB"
+secondaryBackgroundColor = "#EAF0F7"
+textColor = "#173F63"
+
+[theme.dark]
+primaryColor = "#67A8DD"
+backgroundColor = "#0E1520"
+secondaryBackgroundColor = "#172231"
+textColor = "#F2F6FA"
+
+[server]
+address = "127.0.0.1"
+enableCORS = true
+enableXsrfProtection = true

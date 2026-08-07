@@ -6,11 +6,12 @@ decision-support insights to a formatted Excel workbook
 using openpyxl.
 """
 
-import os
 from datetime import datetime
-from typing import Iterable
+from pathlib import Path
+import re
 
 from openpyxl import Workbook
+from openpyxl.cell.cell import MergedCell
 from openpyxl.styles import (
     Alignment,
     Border,
@@ -22,9 +23,12 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
 from modules.decision_support import Insight
+from modules.domain import KPIBundle
+from modules.i18n import translate
 
 
-DEFAULT_OUTPUT_PATH = "reports/kpi_report.xlsx"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_OUTPUT_PATH = PROJECT_ROOT / "reports" / "kpi_report.xlsx"
 
 
 # ---------------------------------------------------------------------------
@@ -192,6 +196,9 @@ def _auto_fit_columns(
         maximum_length = 0
 
         for cell in column_cells:
+            if isinstance(cell, MergedCell):
+                continue
+
             if cell.value is None:
                 continue
 
@@ -209,31 +216,6 @@ def _auto_fit_columns(
         worksheet.column_dimensions[
             column_letter
         ].width = adjusted_width
-
-
-def _format_currency_cells(
-    worksheet: Worksheet,
-    cells: Iterable,
-) -> None:
-    """Apply currency formatting to selected cells."""
-
-    for cell in cells:
-        cell.number_format = '$#,##0.00'
-
-
-def _format_percentage_cells(
-    worksheet: Worksheet,
-    cells: Iterable,
-) -> None:
-    """
-    Apply percentage-point formatting.
-
-    KPI values are already stored as values such as 25.5,
-    rather than decimal fractions such as 0.255.
-    """
-
-    for cell in cells:
-        cell.number_format = '0.00"%"'
 
 
 def _prepare_table_sheet(
@@ -278,7 +260,7 @@ def _prepare_table_sheet(
 
 def _create_summary_sheet(
     workbook: Workbook,
-    kpis: dict,
+    kpis: KPIBundle,
 ) -> None:
     """Create the high-level KPI summary worksheet."""
 
@@ -396,8 +378,8 @@ def _create_summary_sheet(
         ),
         (
             "Sales",
-            "Churn Rate",
-            sales["churn_rate_pct"],
+            "Churned Order Rate",
+            sales["churned_order_rate_pct"],
             "percentage",
         ),
         (
@@ -438,8 +420,14 @@ def _create_summary_sheet(
         ),
         (
             "Metadata",
-            "Total Customers",
+            "Customers in Scope",
             meta["total_customers"],
+            "integer",
+        ),
+        (
+            "Metadata",
+            "Active Customers",
+            meta["active_customers"],
             "integer",
         ),
         (
@@ -514,15 +502,11 @@ def _create_summary_sheet(
         end_column=3,
     )
 
-    _format_currency_cells(
-        worksheet,
-        currency_cells,
-    )
+    for cell in currency_cells:
+        cell.number_format = '$#,##0.00'
 
-    _format_percentage_cells(
-        worksheet,
-        percentage_cells,
-    )
+    for cell in percentage_cells:
+        cell.number_format = '0.00"%"'
 
     previous_category = None
 
@@ -552,7 +536,7 @@ def _create_summary_sheet(
 
 def _create_monthly_revenue_sheet(
     workbook: Workbook,
-    kpis: dict,
+    kpis: KPIBundle,
 ) -> None:
     """Create the monthly revenue worksheet."""
 
@@ -611,7 +595,7 @@ def _create_monthly_revenue_sheet(
 
 def _create_quarterly_revenue_sheet(
     workbook: Workbook,
-    kpis: dict,
+    kpis: KPIBundle,
 ) -> None:
     """Create the quarterly revenue worksheet."""
 
@@ -674,7 +658,7 @@ def _create_quarterly_revenue_sheet(
 
 def _create_product_sheet(
     workbook: Workbook,
-    kpis: dict,
+    kpis: KPIBundle,
 ) -> None:
     """Create the product performance worksheet."""
 
@@ -773,7 +757,7 @@ def _create_product_sheet(
 
 def _create_regional_sheet(
     workbook: Workbook,
-    kpis: dict,
+    kpis: KPIBundle,
 ) -> None:
     """Create the regional performance worksheet."""
 
@@ -876,7 +860,7 @@ def _create_regional_sheet(
 
 def _create_sales_sheet(
     workbook: Workbook,
-    kpis: dict,
+    kpis: KPIBundle,
 ) -> None:
     """Create the sales performance worksheet."""
 
@@ -932,8 +916,8 @@ def _create_sales_sheet(
             "percentage",
         ),
         (
-            "Churn Rate",
-            sales["churn_rate_pct"],
+            "Churned Order Rate",
+            sales["churned_order_rate_pct"],
             "percentage",
         ),
         (
@@ -1009,18 +993,18 @@ def _create_segment_sheet(
 
     headers = [
         "Segment",
-        "Customers",
+        "Customers in Scope",
         "Active Customers",
         "Total Orders",
         "Won Orders",
         "Lost Orders",
         "Churned Orders",
         "Revenue",
-        "Revenue Share",
-        "Revenue per Customer",
+        "Share of Selected Revenue",
+        "Revenue per Active Customer",
         "Average Order Value",
         "Win Rate",
-        "Churn Rate",
+        "Churned Order Rate",
         "Top Product",
     ]
 
@@ -1100,14 +1084,14 @@ def _create_segment_sheet(
         share_cell = worksheet.cell(
             row=row_number,
             column=9,
-            value=values["revenue_share_pct"],
+            value=values["share_of_selection_pct"],
         )
         share_cell.number_format = '0.00"%"'
 
         revenue_per_customer_cell = worksheet.cell(
             row=row_number,
             column=10,
-            value=values["revenue_per_customer"],
+            value=values["revenue_per_active_customer"],
         )
         revenue_per_customer_cell.number_format = '$#,##0.00'
 
@@ -1128,7 +1112,7 @@ def _create_segment_sheet(
         churn_rate_cell = worksheet.cell(
             row=row_number,
             column=13,
-            value=values["churn_rate_pct"],
+            value=values["churned_order_rate_pct"],
         )
         churn_rate_cell.number_format = '0.00"%"'
 
@@ -1330,45 +1314,89 @@ def _create_forecast_sheet(
         )
 
         forecast_cell.number_format = '$#,##0.00'
-
         row += 1
 
-    row += 2
+    data_end_row = row - 1
 
-    worksheet.cell(row=row, column=1).value = "Model"
-    worksheet.cell(row=row, column=2).value = model["name"]
-
-    row += 1
-    worksheet.cell(row=row, column=1).value = "Method"
-    worksheet.cell(row=row, column=2).value = model["method"]
-
-    row += 1
-    worksheet.cell(row=row, column=1).value = "Slope"
-    worksheet.cell(row=row, column=2).value = model["slope"]
-
-    row += 1
-    worksheet.cell(row=row, column=1).value = "R²"
-    worksheet.cell(row=row, column=2).value = model["r_squared"]
-
-    row += 1
-    worksheet.cell(row=row, column=1).value = "Trend Direction"
-    worksheet.cell(row=row, column=2).value = model["direction"]
+    if data_end_row >= 4:
+        _style_data_range(
+            worksheet,
+            start_row=4,
+            end_row=data_end_row,
+            start_column=1,
+            end_column=4,
+        )
+        worksheet.auto_filter.ref = (
+            f"A3:D{data_end_row}"
+        )
 
     row += 2
 
-    worksheet.cell(
-        row=row,
-        column=1,
-    ).value = "Forecast Assumptions"
+    model_rows = [
+        ("Model", model["name"]),
+        ("Method", model["method"]),
+        ("Slope", model["slope"]),
+        (
+            "R²",
+            (
+                model["r_squared"]
+                if model.get(
+                    "r_squared_interpretable",
+                    True,
+                )
+                else "N/A"
+            ),
+        ),
+        (
+            "Forecast Reliability",
+            model.get(
+                "reliability",
+                "unavailable",
+            ).title(),
+        ),
+        ("Trend Direction", model["direction"]),
+    ]
 
-    worksheet.cell(
-        row=row,
-        column=1,
-    ).font = Font(bold=True)
+    model_start_row = row
+
+    for label, value in model_rows:
+        worksheet.cell(
+            row=row,
+            column=1,
+            value=label,
+        )
+        worksheet.cell(
+            row=row,
+            column=2,
+            value=value,
+        )
+        row += 1
+
+    _style_data_range(
+        worksheet,
+        start_row=model_start_row,
+        end_row=row - 1,
+        start_column=1,
+        end_column=2,
+    )
 
     row += 1
 
-    for assumption in revenue_forecast["assumptions"]:
+    assumption_header = worksheet.cell(
+        row=row,
+        column=1,
+        value="Forecast Assumptions",
+    )
+    assumption_header.font = Font(
+        bold=True,
+    )
+
+    row += 1
+    assumptions_start_row = row
+
+    for assumption in revenue_forecast[
+        "assumptions"
+    ]:
         worksheet.cell(
             row=row,
             column=1,
@@ -1376,26 +1404,204 @@ def _create_forecast_sheet(
         )
         row += 1
 
-    _auto_fit_columns(worksheet)
+    if row > assumptions_start_row:
+        _style_data_range(
+            worksheet,
+            start_row=assumptions_start_row,
+            end_row=row - 1,
+            start_column=1,
+            end_column=1,
+        )
 
-# ---------------------------------------------------------------------------
-# Public function
-# ---------------------------------------------------------------------------
+    _auto_fit_columns(worksheet)
+    worksheet.freeze_panes = "A4"
+
+
+
+EXCEL_TRANSLATION_KEYS = (
+    "excel.title.summary",
+    "excel.title.monthly",
+    "excel.title.quarterly",
+    "excel.title.product",
+    "excel.title.region",
+    "excel.title.sales",
+    "excel.title.segment",
+    "excel.title.forecast",
+    "excel.title.insights",
+    "excel.label.category",
+    "excel.label.metric",
+    "excel.label.value",
+    "excel.label.metadata",
+    "excel.label.revenue",
+    "excel.label.sales",
+    "excel.label.product",
+    "excel.label.region",
+    "excel.label.trend",
+    "excel.label.total_revenue",
+    "excel.label.avg_order_value",
+    "excel.label.mom_growth",
+    "excel.label.win_rate",
+    "excel.label.churned_order_rate",
+    "excel.label.customers_scope",
+    "excel.label.active_customers",
+    "excel.label.total_orders",
+    "excel.label.date_range",
+    "excel.label.generated_at",
+    "excel.label.current_month",
+    "excel.label.previous_month",
+    "excel.label.current_month_revenue",
+    "excel.label.previous_month_revenue",
+    "excel.label.total_won_orders",
+    "excel.label.won_orders",
+    "excel.label.lost_orders",
+    "excel.label.churned_orders",
+    "excel.label.top_account_manager",
+    "excel.label.top_account_manager_revenue",
+    "excel.label.top_product",
+    "excel.label.top_region",
+    "excel.label.trend_direction",
+    "excel.label.trend_slope",
+    "excel.label.month",
+    "excel.label.quarter",
+    "excel.label.revenue_mix",
+    "excel.label.units_sold",
+    "excel.label.segment",
+    "excel.label.share_selected",
+    "excel.label.revenue_per_active_customer",
+    "excel.label.actual_revenue",
+    "excel.label.trend_value",
+    "excel.label.forecast_revenue",
+    "excel.label.model",
+    "excel.label.method",
+    "excel.label.slope",
+    "excel.label.forecast_reliability",
+    "excel.label.forecast_assumptions",
+    "excel.label.language",
+    "excel.label.severity",
+    "excel.label.priority",
+    "excel.label.title",
+    "excel.label.detail",
+    "excel.label.recommended_action",
+    "excel.assumption.history",
+    "excel.assumption.linear",
+    "excel.assumption.seasonality",
+    "excel.assumption.directional",
+    "excel.assumption.missing_months",
+)
+
+EXCEL_SHEET_KEYS = {
+    "KPI Summary": "excel.sheet.summary",
+    "Monthly Revenue": "excel.sheet.monthly",
+    "Quarterly Revenue": "excel.sheet.quarterly",
+    "Product Performance": "excel.sheet.product",
+    "Regional Performance": "excel.sheet.region",
+    "Sales Performance": "excel.sheet.sales",
+    "Segment Performance": "excel.sheet.segment",
+    "Revenue Forecast": "excel.sheet.forecast",
+    "Decision Insights": "excel.sheet.insights",
+}
+
+
+def _bilingual_text(
+    key: str,
+) -> str:
+    """Return one English / Turkish Excel label."""
+
+    english = translate(
+        key,
+        "en",
+    )
+    turkish = translate(
+        key,
+        "tr",
+    )
+
+    if english == turkish:
+        return english
+
+    return f"{english} / {turkish}"
+
+
+def _make_workbook_bilingual(
+    workbook: Workbook,
+) -> None:
+    """
+    Localize all fixed analytical labels in both supported languages.
+
+    Business data values remain unchanged. Decision insights already
+    contain separate English and Turkish records.
+    """
+
+    english_to_key = {
+        translate(key, "en"): key
+        for key in EXCEL_TRANSLATION_KEYS
+    }
+
+    for key in (
+        "trend.direction.growing",
+        "trend.direction.declining",
+        "trend.direction.stable",
+        "forecast.reliability.unavailable",
+        "forecast.reliability.low",
+        "forecast.reliability.moderate",
+        "forecast.reliability.high",
+    ):
+        english_to_key[
+            translate(key, "en")
+        ] = key
+
+    for worksheet in workbook.worksheets:
+        original_title = worksheet.title
+
+        if original_title in EXCEL_SHEET_KEYS:
+            key = EXCEL_SHEET_KEYS[
+                original_title
+            ]
+            english = translate(
+                key,
+                "en",
+            )
+            turkish = translate(
+                key,
+                "tr",
+            )
+            worksheet.title = (
+                english
+                if english == turkish
+                else f"{english} - {turkish}"
+            )[:31]
+
+        for row in worksheet.iter_rows():
+            for cell in row:
+                if not isinstance(
+                    cell.value,
+                    str,
+                ):
+                    continue
+
+                key = english_to_key.get(
+                    cell.value
+                )
+
+                if key is not None:
+                    cell.value = _bilingual_text(
+                        key
+                    )
+
 
 def generate_excel_report(
-    kpis: dict,
+    kpis: KPIBundle,
     insights_by_language: dict[
         str,
         list[Insight],
     ],
     segment_analysis: dict,
     revenue_forecast: dict,
-    output_path: str = DEFAULT_OUTPUT_PATH,
+    output_path: str | Path | None = None,
 ) -> str:
     """
-    Generate a formatted Excel workbook containing KPI results,
-    customer-segment performance, and bilingual decision-support
-    insights.
+    Generate a formatted bilingual Excel workbook containing KPI results,
+    customer-segment performance, forecasts, and decision-support insights.
 
     Args:
         kpis:
@@ -1415,15 +1621,24 @@ def generate_excel_report(
         The generated workbook path.
     """
 
-    output_directory = os.path.dirname(
-        output_path
-    )
+    if output_path is None:
+        filters = kpis.get("filters", {})
+        if filters:
+            parts = []
+            for key, value in filters.items():
+                cleaned = re.sub(r"[^a-z0-9]+", "-", str(value).casefold()).strip("-")
+                parts.append(f"{key}-{cleaned}")
+            suffix = "_".join(parts)
+        else:
+            suffix = "full-dataset"
+        resolved_output_path = PROJECT_ROOT / "reports" / f"kpi_report_{suffix}.xlsx"
+    else:
+        resolved_output_path = Path(output_path)
 
-    if output_directory:
-        os.makedirs(
-            output_directory,
-            exist_ok=True,
-        )
+    resolved_output_path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
 
     workbook = Workbook()
 
@@ -1472,6 +1687,10 @@ def generate_excel_report(
         insights_by_language,
     )
 
+    _make_workbook_bilingual(
+        workbook,
+    )
+
     workbook.properties.title = (
         "Python BI Reporting and Decision Support Report"
     )
@@ -1486,8 +1705,8 @@ def generate_excel_report(
 
     workbook.properties.created = datetime.now()
 
-    workbook.save(output_path)
+    workbook.save(resolved_output_path)
 
-    print(f"  ✓ {output_path}")
+    print(f"  ✓ {resolved_output_path}")
 
-    return output_path
+    return str(resolved_output_path)

@@ -15,18 +15,25 @@ The generated dashboard has no Python dependency after creation.
 from datetime import datetime
 from html import escape
 from pathlib import Path
+import json
+import re
 
 from modules.i18n import translate
+from modules.decision_support import DEFAULT_THRESHOLDS
+from modules.domain import KPIBundle
+from modules.theme import (
+    ACCENT_COLOR,
+    DARK_TEXT_COLOR,
+    PRIMARY_COLOR,
+    SECONDARY_COLOR,
+    SEVERITY_COLORS,
+)
 
 
-REPORT_DIR = Path("reports")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+REPORT_DIR = PROJECT_ROOT / "reports"
 
-SEVERITY_COLOR = {
-    "critical": "#E8855A",
-    "warning": "#E8C25A",
-    "good": "#48A999",
-    "info": "#2D6A9F",
-}
+SEVERITY_COLOR = SEVERITY_COLORS
 
 SEVERITY_ICON = {
     "critical": "🔴",
@@ -35,192 +42,6 @@ SEVERITY_ICON = {
     "info": "🔵",
 }
 
-UI_TEXT = {
-    "en": {
-        "app_name": "BI Dashboard",
-        "app_subtitle": "Internship Project · KivaCRM",
-        "analytics": "Analytics",
-        "reports": "Reports",
-        "overview": "Overview",
-        "insights": "Decision Insights",
-        "performance": "Performance Analytics",
-        "segments": "Segment Analysis",
-        "forecast": "Revenue Forecast",
-        "period": "Reporting period",
-        "generated": "Generated",
-        "executive_summary": "Executive Summary",
-        "executive_summary_sub": "Highest-priority findings from the decision-support engine",
-        "kpis": "Key Performance Indicators",
-        "overview_charts": "Business Overview",
-        "performance_charts": "Sales & Operational Performance",
-        "segment_title": "Customer Segment Analysis",
-        "segment_sub": "Compare revenue contribution, conversion, and customer value by segment.",
-        "forecast_title": "Three-Month Revenue Forecast",
-        "forecast_sub": "A linear baseline intended as a directional estimate rather than a guaranteed prediction.",
-        "all_insights": "All Decision-Support Insights",
-        "all_insights_sub": "Prioritized findings and recommended actions generated from KPI thresholds.",
-        "footer": "Python BI Module — Internship Project · KivaCRM",
-        "monthly_revenue": "Monthly Revenue Trend",
-        "regional_revenue": "Revenue by Region",
-        "product_mix": "Revenue by Product",
-        "status_breakdown": "Order Status Breakdown",
-        "am_performance": "Account Manager Performance",
-        "segment_performance": "Customer Segment Performance",
-        "revenue_forecast": "Three-Month Revenue Forecast",
-        "critical_count": "Critical findings",
-        "positive_count": "Positive findings",
-        "trend_label": "Trend",
-        "top_product": "Top product",
-        "top_region": "Top region",
-        "dataset_snapshot": "Dataset Snapshot",
-        "products": "Products",
-        "regions": "Regions",
-        "won_orders": "Won orders",
-        "forecast_model": "Forecast Model",
-        "model_name": "Model",
-        "forecast_horizon": "Forecast horizon",
-        "three_months": "3 months",
-        "model_interpretation": "Interpretation",
-        "directional_only": "Directional baseline; not a guaranteed prediction",
-        "forecast_explanation": (
-            "This forecast is derived from historical monthly revenue using "
-            "a simple linear trend and should be interpreted as a directional "
-            "estimate rather than a precise prediction."
-        ),
-        "segment_highlights": "Segment Highlights",
-        "segment_note": (
-            "Revenue, conversion, and churn should be assessed "
-            "together rather than in isolation."
-        ),
-        "historical_performance": "Historical performance across the reporting period",
-        "regional_comparison": "Comparison of won-order revenue by region",
-        "product_distribution": "Revenue concentration across products",
-        "status_distribution": "Distribution of Won, Lost, and Churned records",
-        "manager_comparison": "Revenue and won-order volume by account manager",
-        "segment_comparison": "Revenue contribution and win rate by customer segment",
-        "forecast_comparison": "Historical revenue, fitted trend, and next three months",
-        "overview_highlights": "Executive Alerts",
-        "high_priority": "High priority",
-        "investigate": "Needs investigation",
-        "on_track": "On track",
-        "dataset": "Dataset",
-        "months": "months",
-        "generated_by": "Generated",
-        "revenue_status": "Revenue status",
-        "sales_status": "Sales status",
-        "retention_status": "Retention status",
-        "declining": "Declining",
-        "healthy": "Healthy",
-        "needs_attention": "Needs attention",
-        "exact_value": "Exact value",
-        "confidence": "Confidence",
-        "low": "Low",
-        "slope": "Monthly slope",
-        "r_squared": "R²",
-        "best_revenue_segment": "Highest revenue segment",
-        "best_value_segment": "Highest revenue per customer",
-        "best_conversion_segment": "Highest win rate segment",
-        "best_retention_segment": "Lowest churn segment",
-        "developed_by": "Developed by",
-        "author": "Salsabeel Alfayoumi",
-        "critical": "Critical",
-        "warning": "Warning",
-        "good": "Good",
-        "info": "Info",
-    },
-    "tr": {
-        "app_name": "İş Zekâsı Paneli",
-        "app_subtitle": "Staj Projesi · KivaCRM",
-        "analytics": "Analizler",
-        "reports": "Raporlar",
-        "overview": "Genel Bakış",
-        "insights": "Karar Destek İçgörüleri",
-        "performance": "Performans Analizleri",
-        "segments": "Segment Analizi",
-        "forecast": "Gelir Tahmini",
-        "period": "Raporlama dönemi",
-        "generated": "Oluşturulma",
-        "executive_summary": "Yönetici Özeti",
-        "executive_summary_sub": "Karar destek motorunun en yüksek öncelikli bulguları",
-        "kpis": "Temel Performans Göstergeleri",
-        "overview_charts": "İşletme Genel Görünümü",
-        "performance_charts": "Satış ve Operasyon Performansı",
-        "segment_title": "Müşteri Segmenti Analizi",
-        "segment_sub": "Segmentlere göre gelir katkısı, dönüşüm ve müşteri değerini karşılaştırın.",
-        "forecast_title": "Üç Aylık Gelir Tahmini",
-        "forecast_sub": "Kesin bir öngörü değil, yön gösterici temel tahmin olarak değerlendirilmelidir.",
-        "all_insights": "Tüm Karar Destek İçgörüleri",
-        "all_insights_sub": "KPI eşiklerinden üretilen önceliklendirilmiş bulgular ve önerilen aksiyonlar.",
-        "footer": "Python İş Zekâsı Modülü — Staj Projesi · KivaCRM",
-        "monthly_revenue": "Aylık Gelir Trendi",
-        "regional_revenue": "Bölge Bazında Gelir",
-        "product_mix": "Ürün Bazında Gelir",
-        "status_breakdown": "Sipariş Durumu Dağılımı",
-        "am_performance": "Müşteri Temsilcisi Performansı",
-        "segment_performance": "Müşteri Segmenti Performansı",
-        "revenue_forecast": "Üç Aylık Gelir Tahmini",
-        "critical_count": "Kritik bulgu",
-        "positive_count": "Olumlu bulgu",
-        "trend_label": "Trend",
-        "top_product": "En başarılı ürün",
-        "top_region": "En başarılı bölge",
-        "dataset_snapshot": "Veri Seti Özeti",
-        "products": "Ürünler",
-        "regions": "Bölgeler",
-        "won_orders": "Kazanılan siparişler",
-        "forecast_model": "Tahmin Modeli",
-        "model_name": "Model",
-        "forecast_horizon": "Tahmin dönemi",
-        "three_months": "3 ay",
-        "model_interpretation": "Yorum",
-        "directional_only": "Yön gösterici temel tahmindir; kesin öngörü değildir",
-        "forecast_explanation": (
-            "Bu tahmin, geçmiş aylık gelir verilerinden basit bir doğrusal trend "
-            "kullanılarak oluşturulmuştur ve kesin bir öngörü yerine yön gösterici "
-            "bir tahmin olarak değerlendirilmelidir."
-        ),
-        "segment_highlights": "Segment Özeti",
-        "segment_note": (
-            "Gelir, dönüşüm ve churn göstergeleri birbirinden "
-            "bağımsız değil, birlikte değerlendirilmelidir."
-        ),
-        "historical_performance": "Raporlama dönemindeki tarihsel performans",
-        "regional_comparison": "Bölgelere göre kazanılan sipariş geliri karşılaştırması",
-        "product_distribution": "Ürünlere göre gelir yoğunluğu",
-        "status_distribution": "Kazanılan, kaybedilen ve churn durumundaki kayıtların dağılımı",
-        "manager_comparison": "Müşteri temsilcilerine göre gelir ve kazanılan sipariş hacmi",
-        "segment_comparison": "Müşteri segmentlerine göre gelir katkısı ve kazanma oranı",
-        "forecast_comparison": "Gerçekleşen gelir, doğrusal trend ve sonraki üç ay",
-        "overview_highlights": "Yönetici Uyarıları",
-        "high_priority": "Yüksek öncelik",
-        "investigate": "İncelenmesi gerekli",
-        "on_track": "Hedef doğrultusunda",
-        "dataset": "Veri seti",
-        "months": "ay",
-        "generated_by": "Oluşturulma",
-        "revenue_status": "Gelir durumu",
-        "sales_status": "Satış durumu",
-        "retention_status": "Müşteri tutundurma durumu",
-        "declining": "Düşüşte",
-        "healthy": "Sağlıklı",
-        "needs_attention": "İyileştirme gerekli",
-        "exact_value": "Kesin değer",
-        "confidence": "Güven düzeyi",
-        "low": "Düşük",
-        "slope": "Aylık eğim",
-        "r_squared": "R²",
-        "best_revenue_segment": "En yüksek gelir segmenti",
-        "best_value_segment": "Müşteri başına en yüksek gelir",
-        "best_conversion_segment": "En yüksek kazanma oranı",
-        "best_retention_segment": "En düşük churn oranı",
-        "developed_by": "Geliştiren",
-        "author": "Salsabeel Alfayoumi",
-        "critical": "Kritik",
-        "warning": "Uyarı",
-        "good": "Olumlu",
-        "info": "Bilgi",
-    },
-}
 
 
 def _safe(value) -> str:
@@ -230,11 +51,11 @@ def _safe(value) -> str:
 
 
 def _ui(language: str, key: str) -> str:
-    """Return localized UI text."""
+    """Return report UI text from the central translation source."""
 
-    return UI_TEXT.get(language, UI_TEXT["en"]).get(
-        key,
-        UI_TEXT["en"].get(key, key),
+    return translate(
+        f"report_ui.{key}",
+        language,
     )
 
 
@@ -256,7 +77,7 @@ def _kpi_card(
     label: str,
     value: str,
     subtitle: str = "",
-    color: str = "#2D6A9F",
+    color: str = PRIMARY_COLOR,
     progress: float | None = None,
     icon: str = "📌",
     delta_class: str = "",
@@ -337,7 +158,7 @@ def _insight_card(insight, language: str) -> str:
     >
       <div class="insight-header">
         <div class="insight-title">
-          <span>{icon}</span>
+          <span>{_safe(icon)}</span>
           <span>[{_safe(insight.category)}] {_safe(insight.title)}</span>
         </div>
 
@@ -444,7 +265,7 @@ def _embed_chart(
 
 
 def _build_kpi_cards(
-    kpis: dict,
+    kpis: KPIBundle,
     language: str,
 ) -> str:
     """Create all KPI cards for one language."""
@@ -455,25 +276,32 @@ def _build_kpi_cards(
 
     mom_growth = revenue["mom_growth_pct"]
     win_rate = sales["win_rate_pct"]
-    churn_rate = sales["churn_rate_pct"]
+    churn_rate = sales["churned_order_rate_pct"]
 
-    if mom_growth > 0:
-        mom_color = SEVERITY_COLOR["good"]
-    elif mom_growth < 0:
-        mom_color = SEVERITY_COLOR["critical"]
-    else:
+    if mom_growth is None:
         mom_color = SEVERITY_COLOR["info"]
+        mom_text = "N/A"
+        mom_detail = revenue.get("mom_growth_status", "unavailable")
+    else:
+        mom_text = f"{mom_growth:+.2f}%"
+        mom_detail = translate("kpi.mom", language, value=mom_growth)
+        if mom_growth > 0:
+            mom_color = SEVERITY_COLOR["good"]
+        elif mom_growth < 0:
+            mom_color = SEVERITY_COLOR["critical"]
+        else:
+            mom_color = SEVERITY_COLOR["info"]
 
-    if win_rate >= 55:
+    if win_rate >= DEFAULT_THRESHOLDS.win_rate_warning_pct:
         win_color = SEVERITY_COLOR["good"]
-    elif win_rate >= 40:
+    elif win_rate >= DEFAULT_THRESHOLDS.win_rate_critical_pct:
         win_color = SEVERITY_COLOR["warning"]
     else:
         win_color = SEVERITY_COLOR["critical"]
 
-    if churn_rate <= 10:
+    if churn_rate <= DEFAULT_THRESHOLDS.churned_order_warning_pct:
         churn_color = SEVERITY_COLOR["good"]
-    elif churn_rate <= 15:
+    elif churn_rate <= DEFAULT_THRESHOLDS.churned_order_critical_pct:
         churn_color = SEVERITY_COLOR["warning"]
     else:
         churn_color = SEVERITY_COLOR["critical"]
@@ -486,14 +314,14 @@ def _build_kpi_cards(
             ),
             _compact_currency(revenue["total_revenue"]),
             (
-                f"{translate('kpi.mom', language, value=mom_growth)}"
+                f"{mom_detail}"
                 f" · {_ui(language, 'exact_value')}: "
                 f"${revenue['total_revenue']:,.0f}"
             ),
             mom_color,
-            min(abs(mom_growth) * 3, 100),
+            None,
             "💰",
-            "delta-up" if mom_growth >= 0 else "delta-down",
+            "delta-up" if mom_growth is not None and mom_growth >= 0 else "delta-down",
         ),
         _kpi_card(
             translate(
@@ -515,10 +343,11 @@ def _build_kpi_cards(
                 "kpi.win_rate",
                 language,
             ),
-            f"{win_rate}%",
+            f"{win_rate:.2f}%",
             translate(
                 "kpi.win_target",
                 language,
+                target=DEFAULT_THRESHOLDS.win_rate_warning_pct,
             ),
             win_color,
             win_rate,
@@ -530,10 +359,11 @@ def _build_kpi_cards(
                 "kpi.churn_status_rate",
                 language,
             ),
-            f"{churn_rate}%",
+            f"{churn_rate:.2f}%",
             translate(
                 "kpi.churn_target",
                 language,
+                target=DEFAULT_THRESHOLDS.churned_order_warning_pct,
             ),
             churn_color,
             churn_rate,
@@ -590,7 +420,7 @@ def _build_insight_cards(
 
 
 def _build_executive_summary(
-    kpis: dict,
+    kpis: KPIBundle,
     insights: list,
     language: str,
 ) -> str:
@@ -608,15 +438,14 @@ def _build_executive_summary(
         if insight.severity == "good"
     )
 
-    trend_direction = kpis["trends"]["trend_direction"]
-
-    if language == "tr":
-        trend_direction = (
-            trend_direction
-            .replace("Growing", "Büyüyen")
-            .replace("Declining", "Düşen")
-            .replace("Stable", "Sabit")
-        )
+    trend_direction = translate(
+        "trend.direction."
+        + kpis["trends"].get(
+            "trend_direction_code",
+            "stable",
+        ),
+        language,
+    )
     top_product = kpis["products"]["top_product"]
     top_region = kpis["regions"]["top_region"]
 
@@ -625,25 +454,25 @@ def _build_executive_summary(
             "🔴",
             _ui(language, "critical_count"),
             critical_count,
-            "#E8855A",
+            ACCENT_COLOR,
         ),
         (
             "🟢",
             _ui(language, "positive_count"),
             positive_count,
-            "#48A999",
+            SECONDARY_COLOR,
         ),
         (
             "➡",
             _ui(language, "trend_label"),
             trend_direction,
-            "#2D6A9F",
+            PRIMARY_COLOR,
         ),
         (
             "🧩",
             _ui(language, "top_product"),
             top_product,
-            "#2D6A9F",
+            PRIMARY_COLOR,
         ),
         (
             "📍",
@@ -694,7 +523,7 @@ def _chart_subtitle(language: str, key: str) -> str:
 def _forecast_model_panel(
     language: str,
     revenue_forecast: dict | None,
-    kpis: dict,
+    kpis: KPIBundle,
 ) -> str:
     """Create a dynamic forecast-method summary."""
 
@@ -723,33 +552,40 @@ def _forecast_model_panel(
         if model_method
         else model_name
     )
-    direction = model.get(
-        "direction",
-        kpis["trends"]["trend_direction"],
+    direction_code = model.get(
+        "direction_code",
+        kpis["trends"].get(
+            "trend_direction_code",
+            "stable",
+        ),
     )
-
-    if language == "tr":
-        direction = (
-            str(direction)
-            .replace("Growing", "Büyüyen")
-            .replace("Declining", "Düşen")
-            .replace("Stable", "Sabit")
-        )
+    direction = translate(
+        f"trend.direction.{direction_code}",
+        language,
+    )
 
     r_squared_item = ""
 
     if r_squared is not None:
+        r_squared_display = (
+            f"{float(r_squared):.4f}"
+            if model.get("r_squared_interpretable", True)
+            else "N/A"
+        )
         r_squared_item = f"""
         <div class="model-item">
           <span>{_safe(_ui(language, "r_squared"))}</span>
-          <strong>{float(r_squared):.4f}</strong>
+          <strong>{_safe(r_squared_display)}</strong>
         </div>
         """
 
-    confidence = (
-        _ui(language, "low")
-        if r_squared is not None and float(r_squared) < 0.10
-        else direction
+    reliability = model.get(
+        "reliability",
+        "unavailable",
+    )
+    confidence = translate(
+        f"forecast.reliability.{reliability}",
+        language,
     )
 
     return f"""
@@ -766,7 +602,7 @@ def _forecast_model_panel(
 
         <div class="model-item">
           <span>{_safe(_ui(language, "forecast_horizon"))}</span>
-          <strong>{_safe(forecast_months)} {_safe("ay" if language == "tr" else "months")}</strong>
+          <strong>{_safe(forecast_months)} {_safe(_ui(language, "months"))}</strong>
         </div>
 
         <div class="model-item">
@@ -861,14 +697,14 @@ def _segment_note_panel(
 
 
 def _build_overview_highlights(
-    kpis: dict,
+    kpis: KPIBundle,
     language: str,
 ) -> str:
     """Create three executive alerts for immediate attention."""
 
-    mom_growth = kpis["revenue"]["mom_growth_pct"]
+    mom_growth = kpis["revenue"]["mom_growth_pct"] if kpis["revenue"]["mom_growth_pct"] is not None else 0.0
     win_rate = kpis["sales"]["win_rate_pct"]
-    churn_rate = kpis["sales"]["churn_rate_pct"]
+    churn_rate = kpis["sales"]["churned_order_rate_pct"]
 
     highlights = [
         {
@@ -879,7 +715,7 @@ def _build_overview_highlights(
                 if mom_growth < 0
                 else _ui(language, "healthy")
             ),
-            "detail": f"{mom_growth:+.1f}%",
+            "detail": f"{mom_growth:+.2f}%",
             "priority": (
                 _ui(language, "high_priority")
                 if mom_growth < 0
@@ -892,32 +728,32 @@ def _build_overview_highlights(
             "label": _ui(language, "retention_status"),
             "value": (
                 _ui(language, "healthy")
-                if churn_rate <= 10
+                if churn_rate <= DEFAULT_THRESHOLDS.churned_order_warning_pct
                 else _ui(language, "needs_attention")
             ),
             "detail": f"{churn_rate:.2f}%",
             "priority": (
                 _ui(language, "on_track")
-                if churn_rate <= 10
+                if churn_rate <= DEFAULT_THRESHOLDS.churned_order_warning_pct
                 else _ui(language, "investigate")
             ),
-            "class": "highlight-good" if churn_rate <= 10 else "highlight-critical",
+            "class": "highlight-good" if churn_rate <= DEFAULT_THRESHOLDS.churned_order_warning_pct else "highlight-critical",
         },
         {
             "icon": "🎯",
             "label": _ui(language, "sales_status"),
             "value": (
                 _ui(language, "healthy")
-                if win_rate >= 55
+                if win_rate >= DEFAULT_THRESHOLDS.win_rate_warning_pct
                 else _ui(language, "needs_attention")
             ),
             "detail": f"{win_rate:.2f}%",
             "priority": (
                 _ui(language, "on_track")
-                if win_rate >= 55
+                if win_rate >= DEFAULT_THRESHOLDS.win_rate_warning_pct
                 else _ui(language, "investigate")
             ),
-            "class": "highlight-good" if win_rate >= 55 else "highlight-warning",
+            "class": "highlight-good" if win_rate >= DEFAULT_THRESHOLDS.win_rate_warning_pct else "highlight-warning",
         },
     ]
 
@@ -950,7 +786,7 @@ def _build_overview_highlights(
 
 
 def _build_language_content(
-    kpis: dict,
+    kpis: KPIBundle,
     insights: list,
     chart_paths: dict,
     language: str,
@@ -961,6 +797,14 @@ def _build_language_content(
     """Build the complete application interface for one language."""
 
     meta = kpis["meta"]
+    active_filters = kpis.get("filters", {})
+    if active_filters:
+        filter_scope = " · ".join(
+            f"{key.replace('_', ' ').title()}: {value}"
+            for key, value in active_filters.items()
+        )
+    else:
+        filter_scope = _ui(language, "full_dataset")
 
     reporting_months = len(
         kpis["trends"].get(
@@ -1053,10 +897,16 @@ def _build_language_content(
         language,
     )
 
+    hidden_attribute = (
+        ""
+        if language == "en"
+        else " hidden"
+    )
+
     return f"""
     <div
       class="language-content"
-      data-language-content="{language}"
+      data-language-content="{language}"{hidden_attribute}
     >
       <aside class="sidebar">
         <div class="sidebar-brand">
@@ -1207,8 +1057,8 @@ def _build_language_content(
               <div>
                 <h1>{_safe(_ui(language, "overview"))}</h1>
                 <p>
-                  {_safe(_ui(language, "generated"))}:
-                  {_safe(generated)}
+                  {_safe(_ui(language, "generated"))}: {_safe(generated)}<br>
+                  <strong>{_safe(filter_scope)}</strong>
                 </p>
               </div>
             </div>
@@ -1374,8 +1224,21 @@ def _build_language_content(
     """
 
 
+
+def _filter_slug(filters: dict) -> str:
+    """Return a filesystem-safe suffix describing active filters."""
+
+    if not filters:
+        return "full-dataset"
+    parts = []
+    for key, value in filters.items():
+        cleaned = re.sub(r"[^a-z0-9]+", "-", str(value).casefold()).strip("-")
+        parts.append(f"{key}-{cleaned}")
+    return "_".join(parts)
+
+
 def generate_html_report(
-    kpis: dict,
+    kpis: KPIBundle,
     insights_by_language: dict,
     chart_paths_by_language: dict,
     segment_analysis: dict | None = None,
@@ -1429,6 +1292,26 @@ def generate_html_report(
         "en",
     )
 
+    page_titles_json = json.dumps(
+        {
+            "en": {
+                "overview": _ui("en", "overview"),
+                "performance": _ui("en", "performance"),
+                "segments": _ui("en", "segments"),
+                "forecast": _ui("en", "forecast"),
+                "insights": _ui("en", "insights"),
+            },
+            "tr": {
+                "overview": _ui("tr", "overview"),
+                "performance": _ui("tr", "performance"),
+                "segments": _ui("tr", "segments"),
+                "forecast": _ui("tr", "forecast"),
+                "insights": _ui("tr", "insights"),
+            },
+        },
+        ensure_ascii=False,
+    )
+
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1447,11 +1330,11 @@ def generate_html_report(
   }}
 
   :root {{
-    --blue: #2D6A9F;
-    --blue-dark: #173F63;
+    --blue: {PRIMARY_COLOR};
+    --blue-dark: {DARK_TEXT_COLOR};
     --blue-light: #EBF3FA;
-    --green: #48A999;
-    --orange: #E8855A;
+    --green: {SECONDARY_COLOR};
+    --orange: {ACCENT_COLOR};
     --yellow: #AAB4C3;
     --purple: #60758A;
     --background: #F4F7FB;
@@ -2387,22 +2270,7 @@ def generate_html_report(
 {turkish_content}
 
 <script>
-  const PAGE_TITLES = {{
-    en: {{
-      overview: "Overview",
-      performance: "Performance Analytics",
-      segments: "Segment Analysis",
-      forecast: "Revenue Forecast",
-      insights: "Decision Insights"
-    }},
-    tr: {{
-      overview: "Genel Bakış",
-      performance: "Performans Analizleri",
-      segments: "Segment Analizi",
-      forecast: "Gelir Tahmini",
-      insights: "Karar Destek İçgörüleri"
-    }}
-  }};
+  const PAGE_TITLES = {page_titles_json};
 
   function showPage(language, pageName) {{
     const languageRoot = document.querySelector(
@@ -2517,7 +2385,7 @@ def generate_html_report(
 </html>
 """
 
-    output_path = REPORT_DIR / "dashboard.html"
+    output_path = REPORT_DIR / f"dashboard_{_filter_slug(kpis.get('filters', {}))}.html"
 
     output_path.write_text(
         html,

@@ -24,35 +24,27 @@ from modules.i18n import (
 )
 
 
+from modules.theme import (
+    ACCENT_COLOR,
+    DARK_TEXT_COLOR,
+    HIGHLIGHT_COLOR,
+    PALETTE,
+    PRIMARY_COLOR,
+    SECONDARY_COLOR,
+    STATUS_COLORS,
+    TREND_COLOR,
+)
+
 Translator = Callable[[str], str]
 
-CHART_DIR = Path("reports/charts")
-DEFAULT_ORDERS_PATH = Path("data/orders.csv")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+CHART_DIR = PROJECT_ROOT / "reports" / "charts"
 
 LINE_CHART_FIGSIZE = (12, 5.4)
 BAR_CHART_FIGSIZE = (9, 5.4)
 MATPLOTLIB_DPI = 150
 PLOTLY_TITLE_FONT_SIZE = 16
 
-PRIMARY_COLOR = "#2D6A9F"
-SECONDARY_COLOR = "#48A999"
-ACCENT_COLOR = "#E8855A"
-TREND_COLOR = "#8E6BBF"
-HIGHLIGHT_COLOR = "#E8C25A"
-
-PALETTE = [
-    PRIMARY_COLOR,
-    SECONDARY_COLOR,
-    ACCENT_COLOR,
-    TREND_COLOR,
-    HIGHLIGHT_COLOR,
-]
-
-STATUS_COLORS = {
-    "Won": SECONDARY_COLOR,
-    "Lost": ACCENT_COLOR,
-    "Churned": TREND_COLOR,
-}
 
 PLOTLY_FONT_FAMILY = "Segoe UI, Arial, sans-serif"
 PLOTLY_HEIGHT = 520
@@ -101,12 +93,12 @@ def _apply_plotly_layout(
             "yanchor": "top",
             "font": {
                 "size": PLOTLY_TITLE_FONT_SIZE,
-                "color": "#173F63",
+                "color": DARK_TEXT_COLOR,
             },
         },
         "font": {
             "family": PLOTLY_FONT_FAMILY,
-            "color": "#173F63",
+            "color": DARK_TEXT_COLOR,
         },
         "paper_bgcolor": "white",
         "plot_bgcolor": "white",
@@ -167,7 +159,7 @@ def _write_plotly_html(
     fig.write_html(
         path,
         full_html=True,
-        include_plotlyjs=True,
+        include_plotlyjs="directory",
         config=PLOTLY_CONFIG,
     )
 
@@ -191,22 +183,27 @@ def _get_translator(
 
 
 def _resolve_orders_data(
-    orders: pd.DataFrame | None = None,
-    orders_path: str | Path = DEFAULT_ORDERS_PATH,
+    orders: pd.DataFrame,
 ) -> pd.DataFrame:
-    """
-    Return supplied order data or load it from CSV.
+    """Return explicitly supplied order data for chart generation."""
 
-    Passing a DataFrame allows CLI filters to affect every chart
-    consistently without forcing chart functions to reload raw data.
-    """
+    if orders is None:
+        raise ValueError(
+            "Filtered order data must be supplied explicitly "
+            "when generating order-level charts."
+        )
 
-    if orders is not None:
-        return orders.copy()
+    return orders.copy()
 
-    return pd.read_csv(
-        orders_path,
-        parse_dates=["order_date"],
+
+def _ensure_output_parent(
+    path: str | Path,
+) -> None:
+    """Create the parent directory immediately before writing a file."""
+
+    Path(path).parent.mkdir(
+        parents=True,
+        exist_ok=True,
     )
 
 
@@ -214,12 +211,7 @@ def get_chart_path(
     filename: str,
     language: str,
 ) -> str:
-    """Create a language-specific chart output path."""
-
-    CHART_DIR.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
+    """Return a language-specific chart output path."""
 
     source_path = Path(filename)
 
@@ -330,13 +322,12 @@ def plot_monthly_trend(
     )
 
     if save:
+        _ensure_output_parent(path)
         plt.savefig(
             path,
             dpi=MATPLOTLIB_DPI,
             bbox_inches="tight",
         )
-
-        print(f"  ✓ {path}")
 
     plt.close(fig)
 
@@ -420,7 +411,6 @@ def plot_product_mix(
             fig,
             path,
         )
-        print(f"  ✓ {path}")
 
     return path
 
@@ -464,11 +454,16 @@ def plot_regional_revenue(
         edgecolor="white",
     )
 
+    label_offset = max(
+        float(df["revenue"].max()) * 0.02,
+        1.0,
+    )
+
     for bar in bars:
         width = bar.get_width()
 
         ax.text(
-            width + 5000,
+            width + label_offset,
             (
                 bar.get_y()
                 + bar.get_height() / 2
@@ -515,13 +510,12 @@ def plot_regional_revenue(
     )
 
     if save:
+        _ensure_output_parent(path)
         plt.savefig(
             path,
             dpi=MATPLOTLIB_DPI,
             bbox_inches="tight",
         )
-
-        print(f"  ✓ {path}")
 
     plt.close(fig)
 
@@ -530,9 +524,8 @@ def plot_regional_revenue(
 
 # ── 4. Order Status Breakdown ─────────────────────────────────────────────────
 def plot_status_breakdown(
-    orders: pd.DataFrame | None = None,
+    orders: pd.DataFrame,
     *,
-    orders_path: str | Path = DEFAULT_ORDERS_PATH,
     language: str = DEFAULT_LANGUAGE,
     save: bool = True,
 ) -> str:
@@ -544,7 +537,6 @@ def plot_status_breakdown(
 
     resolved_orders = _resolve_orders_data(
         orders,
-        orders_path,
     )
 
     counts = (
@@ -622,16 +614,14 @@ def plot_status_breakdown(
             fig,
             path,
         )
-        print(f"  ✓ {path}")
 
     return path
 
 
 # ── 5. Account Manager Performance ────────────────────────────────────────────
 def plot_am_performance(
-    orders: pd.DataFrame | None = None,
+    orders: pd.DataFrame,
     *,
-    orders_path: str | Path = DEFAULT_ORDERS_PATH,
     language: str = DEFAULT_LANGUAGE,
     save: bool = True,
 ) -> str:
@@ -643,7 +633,6 @@ def plot_am_performance(
 
     resolved_orders = _resolve_orders_data(
         orders,
-        orders_path,
     )
 
     won = resolved_orders[
@@ -800,7 +789,6 @@ def plot_am_performance(
             fig,
             path,
         )
-        print(f"  ✓ {path}")
 
     return path
 
@@ -837,11 +825,11 @@ def plot_segment_performance(
                 "win_rate": values[
                     "win_rate_pct"
                 ],
-                "revenue_per_customer": values[
-                    "revenue_per_customer"
+                "revenue_per_active_customer": values[
+                    "revenue_per_active_customer"
                 ],
                 "churn_rate": values[
-                    "churn_rate_pct"
+                    "churned_order_rate_pct"
                 ],
             }
         )
@@ -871,7 +859,7 @@ def plot_segment_performance(
             textposition="outside",
             customdata=df[
                 [
-                    "revenue_per_customer",
+                    "revenue_per_active_customer",
                     "churn_rate",
                 ]
             ],
@@ -879,9 +867,9 @@ def plot_segment_performance(
                 "<b>%{x}</b><br>"
                 + t("chart.revenue")
                 + ": $%{y:,.2f}<br>"
-                + "Revenue / Customer"
+                + t("chart.revenue_per_active_customer")
                 + ": $%{customdata[0]:,.2f}<br>"
-                + "Churn Rate"
+                + t("chart.churned_order_rate")
                 + ": %{customdata[1]:.2f}%"
                 + "<extra></extra>"
             ),
@@ -986,7 +974,6 @@ def plot_segment_performance(
             fig,
             path,
         )
-        print(f"  ✓ {path}")
 
     return path
 
@@ -1183,47 +1170,46 @@ def plot_revenue_forecast(
         3,
     )
 
-    direction = model.get(
-        "direction",
-        "",
+    direction_code = model.get(
+        "direction_code",
+        "stable",
     )
-
-    if language == "tr":
-        direction_labels = {
-            "Growing": "Büyüyen",
-            "Declining": "Düşen",
-            "Stable": "Sabit",
-        }
-
-        localized_direction = (
-            direction_labels.get(
-                direction,
-                direction,
-            )
+    localized_direction = translate(
+        f"trend.direction.{direction_code}",
+        language,
+    )
+    forecast_horizon_text = translate(
+        "forecast.horizon_text",
+        language,
+        months=forecast_months,
+    )
+    trend_text = translate(
+        "forecast.trend_text",
+        language,
+        direction=localized_direction,
+    )
+    r_squared_text = (
+        f"{r_squared:.4f}"
+        if model.get(
+            "r_squared_interpretable",
+            True,
         )
-
-        forecast_horizon_text = (
-            f"{forecast_months} Aylık Tahmin"
-        )
-
-        trend_text = (
-            f"Trend: {localized_direction}"
-        )
-
-    else:
-        localized_direction = direction
-
-        forecast_horizon_text = (
-            f"{forecast_months}-Month Forecast"
-        )
-
-        trend_text = (
-            f"Trend: {localized_direction}"
-        )
+        else "N/A"
+    )
+    reliability = model.get(
+        "reliability",
+        "unavailable",
+    )
+    reliability_text = translate(
+        f"forecast.reliability.{reliability}",
+        language,
+    )
 
     subtitle = (
         f"{model_name} ({model_method})"
-        f" · R² = {r_squared:.4f}"
+        f" · R² = {r_squared_text}"
+        f" · {translate('forecast.reliability.label', language)}: "
+        f"{reliability_text}"
         f" · {trend_text}"
         f" · {forecast_horizon_text}"
     )
@@ -1285,7 +1271,6 @@ def plot_revenue_forecast(
             fig,
             path,
         )
-        print(f"  ✓ {path}")
 
     return path
 
@@ -1295,6 +1280,8 @@ def generate_all_charts(
     kpis: dict,
     segment_analysis: dict,
     revenue_forecast: dict,
+    *,
+    orders: pd.DataFrame,
     language: str = DEFAULT_LANGUAGE,
 ) -> dict:
     """Generate all charts for one language."""
@@ -1303,22 +1290,8 @@ def generate_all_charts(
         language
     )
 
-    print(
-        "\n📊 "
-        + translate(
-            "visualizer.generating",
-            language,
-        )
-    )
 
-    filtered_orders = (
-        kpis.get(
-            "_data",
-            {},
-        ).get(
-            "orders"
-        )
-    )
+    filtered_orders = orders.copy()
 
     paths = {}
 
@@ -1390,6 +1363,8 @@ def generate_bilingual_charts(
     kpis: dict,
     segment_analysis: dict,
     revenue_forecast: dict,
+    *,
+    orders: pd.DataFrame,
 ) -> dict:
     """Generate English and Turkish chart collections."""
 
@@ -1398,12 +1373,14 @@ def generate_bilingual_charts(
             kpis,
             segment_analysis,
             revenue_forecast,
+            orders=orders,
             language="en",
         ),
         "tr": generate_all_charts(
             kpis,
             segment_analysis,
             revenue_forecast,
+            orders=orders,
             language="tr",
         ),
     }
