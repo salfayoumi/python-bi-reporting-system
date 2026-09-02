@@ -1,187 +1,116 @@
-# Python BI Reporting & Decision Support System
+# Python Data Analytics & Decision Support System
 
-A modular **Business Intelligence (BI)** and **Decision Support System** developed in Python as part of my **Software Engineering Internship at KivaCRM**.
+A modular Python application that turns synthetic CRM data into validated datasets, business metrics, forecasts, automated insights, and bilingual reports.
 
-The system analyzes synthetic CRM sales data, validates data quality and referential integrity, calculates key business performance indicators (KPIs), performs customer segment analysis, generates revenue forecasts, produces automated business recommendations, and provides bilingual HTML and Streamlit reporting in **English** and **Turkish**.
+The project demonstrates practical **Python engineering, data analysis, automation, visualization, testing, and application security**. It was completed during a software engineering internship in July–August 2026.
 
-The core pipeline runs locally and requires no paid APIs. An optional Streamlit interface can also be deployed as a public demo.
+## Project at a glance
 
----
+| Area | Implementation |
+|---|---|
+| Data pipeline | CSV ingestion, validation, quality reporting |
+| Analysis | KPIs, customer segments, products, regions, sales |
+| Forecasting | Three-month revenue trend with reliability indicators |
+| Decision support | Rule-based findings and recommended actions |
+| Interfaces | Streamlit dashboard, HTML dashboard, Excel workbook |
+| Languages | English and Turkish |
+| Data | Fully synthetic CRM records |
 
-# Features
+## What the system does
 
-## Data Processing
+- Generates or loads synthetic CRM data
+- Validates data quality and referential integrity
+- Calculates operational and revenue KPIs
+- Compares customer, product, regional, and sales performance
+- Forecasts the next three months of revenue
+- Converts analytical findings into explainable recommendations
+- Produces bilingual interactive and exportable reports
 
-- Synthetic CRM dataset generator
-- Automated data validation
-- Dataset health report
-- CSV-based data pipeline
-- Duplicate and missing-value detection
-- Invalid data validation (dates, quantities, statuses, revenue)
+## Dashboard preview
 
-## KPI Engine
+### Overview
 
-Automatically calculates business metrics including:
+![Dashboard overview](screenshots/dashboard-overview.png)
 
-- Total Revenue
-- Average Order Value
-- Month-over-Month (MoM) Revenue Growth
-- Win Rate
-- Churned-Order Rate
-- Product Performance
-- Regional Performance
-- Sales Performance
-- Revenue Trend Analysis
+### Business analytics
 
-## Customer Segment Analysis
+![Business analytics](screenshots/dashboard-analytics.png)
 
-Compares customer segments using:
+### Revenue forecast
 
-- Total Revenue
-- Share of Selected Revenue
-- Revenue per Active Customer
-- Average Order Value
-- Win Rate
-- Churned-Order Rate
-- Active Customers
-- Best Performing Product
+![Revenue forecast](screenshots/dashboard-forecast.png)
 
-## Revenue Forecasting
+### Decision support
 
-Forecasts the next three months using Linear Regression (NumPy Polyfit).
+![Decision-support findings](screenshots/dashboard-decisions.png)
 
-The forecast includes:
+## Engineering highlights
 
-- Historical monthly revenue
-- Trend line
-- Forecast values
-- Monthly slope
-- R² (coefficient of determination)
-- Forecast reliability classification
-- Forecast assumptions
+### Modular Python architecture
 
-## Decision Support Engine
+The application separates domain logic, validation, analysis, forecasting, localization, visualization, and export behavior into focused modules. This keeps the core calculations reusable across the command-line pipeline, Streamlit interface, HTML dashboard, and Excel output.
 
-A rule-based decision support engine automatically evaluates KPI results and generates business recommendations.
+### Data validation
 
-The engine identifies situations such as:
+The pipeline checks for:
 
-- Revenue decline
-- High churned-order status
-- Sales performance
-- Regional performance
-- Product concentration
-- Business trend
+- Missing and duplicate records
+- Invalid dates, quantities, statuses, and revenue values
+- Broken relationships between datasets
+- Dataset health issues before analysis begins
 
-Each insight contains:
+### Analytics and forecasting
 
-- Severity level
-- Business explanation
+The analysis layer calculates metrics such as total revenue, average order value, month-over-month growth, win rate, order-level churn status, and product, regional, sales, and customer-segment performance.
+
+A three-month revenue forecast uses a linear trend model and reports the slope, coefficient of determination, assumptions, and a reliability classification. The model is intentionally simple and explainable.
+
+### Decision-support rules
+
+A rule engine evaluates the analytical results and generates structured findings with:
+
+- Severity
+- Explanation
 - Recommended action
 
-## Reporting
+This keeps the generated advice traceable to a specific metric or threshold rather than presenting a black-box recommendation.
 
-The system automatically generates:
+### Bilingual reporting
 
-- Interactive bilingual HTML Dashboard
-- Interactive bilingual Streamlit Dashboard
-- Fully bilingual Excel KPI workbook
-- Bilingual Decision Support insights
-- Console Summary
-
-## Bilingual Support
-
-The HTML dashboard, Streamlit dashboard, charts, and decision-support insights are available in:
-
-- 🇬🇧 English
-- 🇹🇷 Turkish
-
-The Excel workbook is bilingual as well: fixed analytical sheet names, titles, headers, metric labels, forecast metadata, and forecast assumptions are rendered as English / Turkish labels, while the insights sheet keeps separate English and Turkish insight records.
-
----
-
-## Translation Architecture
-
-All user-facing translations are loaded from:
+English and Turkish interface text is loaded from:
 
 ```text
 locales/en.json
 locales/tr.json
 ```
 
-The loader rejects duplicate JSON keys and verifies English/Turkish key parity at startup.
+The loader rejects duplicate JSON keys and verifies translation-key parity at startup. Dashboards, charts, workbook labels, forecast metadata, and insights are localized consistently.
 
-## Security and Deployment
-
-The included data is synthetic. Local Streamlit development is loopback-only and keeps CORS/XSRF protections enabled. Real CRM data must be deployed behind a proper authentication/authorization layer rather than a simple password inside the Streamlit script.
-
-See [`SECURITY.md`](SECURITY.md) and [`deploy/README.md`](deploy/README.md) for the local and hosted deployment profiles.
-
-# Dashboard Preview
-
-## Overview
-
-![Dashboard Overview](screenshots/dashboard-overview.png)
-
----
-
-## Business Analytics
-
-![Business Analytics](screenshots/dashboard-analytics.png)
-
----
-
-## Revenue Forecast
-
-![Revenue Forecast](screenshots/dashboard-forecast.png)
-
----
-
-## Decision Support
-
-![Decision Support](screenshots/dashboard-decisions.png)
-
----
-
-# Excel Reports
-
-## KPI Summary
-
-<img src="screenshots/excel-kpi-summary.png" width="900">
-
----
-
-## Revenue Forecast
-
-<img src="screenshots/excel-forecast.png" width="900">
-
----
-
-# Technologies
+## Technology
 
 - Python
 - Pandas
 - NumPy
-- Matplotlib
 - Plotly
+- Matplotlib
 - OpenPyXL
-- HTML
-- CSS
+- Streamlit
+- Pytest
+- HTML and CSS
 
----
-
-# Project Structure
+## Project structure
 
 ```text
-Python-BI-Reporting-System/
-│
+python-bi-reporting-system/
 ├── data/
 │   ├── customers.csv
 │   ├── orders.csv
 │   └── generate_data.py
-│
+├── deploy/
+├── locales/
+│   ├── en.json
+│   └── tr.json
 ├── modules/
-│   ├── __init__.py
 │   ├── decision_support.py
 │   ├── domain.py
 │   ├── excel_exporter.py
@@ -192,186 +121,94 @@ Python-BI-Reporting-System/
 │   ├── segment_analysis.py
 │   ├── theme.py
 │   └── visualizer.py
-│
-├── tests/
 ├── reports/
 ├── screenshots/
-├── .streamlit/
-│   └── config.toml
-│
+├── tests/
 ├── dashboard.py
 ├── data_analysis.py
 ├── main.py
 ├── requirements.txt
-└── README.md
+└── SECURITY.md
 ```
 
----
+## Run locally
 
-# Installation
-
-Clone the repository:
+1. Clone the repository:
 
 ```bash
 git clone https://github.com/salfayoumi/python-bi-reporting-system.git
+cd python-bi-reporting-system
 ```
 
-Install the required packages:
+2. Install the dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-(Optional) Regenerate the synthetic CRM dataset:
+3. Optionally regenerate the synthetic data:
 
 ```bash
 python data/generate_data.py
 ```
 
-Run the complete pipeline:
+4. Run the complete reporting pipeline:
 
 ```bash
 python main.py
 ```
 
-Run the interactive Streamlit dashboard:
+5. Or start the interactive dashboard:
 
 ```bash
 streamlit run dashboard.py
 ```
 
-Run automated tests:
+6. Run the automated tests:
 
 ```bash
 python -m pytest
 ```
 
----
+## Generated outputs
 
-# Workflow
-
-The application executes the following pipeline:
-
-```text
-Load CRM Data
-        │
-        ▼
-Validate Dataset
-        │
-        ▼
-Compute KPIs
-        │
-        ▼
-Customer Segment Analysis
-        │
-        ▼
-Revenue Forecasting
-        │
-        ▼
-Generate Charts
-        │
-        ▼
-Evaluate Decision-Support Rules Once
-        │
-        ├──► Localize English Insights
-        └──► Localize Turkish Insights
-        │
-        ▼
-Generate HTML Dashboard
-        │
-        ▼
-Generate Excel Report
-```
-
----
-
-# Generated Outputs
-
-Running the project automatically creates:
+The command-line pipeline creates:
 
 ```text
 reports/
-│
 ├── dashboard_<analysis-scope>.html
 ├── kpi_report_<analysis-scope>.xlsx
 └── charts/
 ```
 
-The HTML dashboard contains:
+## Security and data scope
 
-- Executive KPI Overview
-- Monthly Revenue Analysis
-- Regional Performance
-- Product Performance
-- Customer Segment Analysis
-- Revenue Forecast
-- Decision Support Insights
+This is a portfolio application built around synthetic data; it contains no real customer or confidential CRM records.
 
----
+- Streamlit CORS and XSRF protections remain enabled
+- Dynamic values inserted into custom HTML are escaped
+- `.streamlit/secrets.toml` is excluded from Git
+- Invalid input becomes a user-facing error rather than a raw traceback
+- A real-data deployment would require organizational authentication and access control
 
-# Security and Data Scope
+See [SECURITY.md](SECURITY.md) and [deploy/README.md](deploy/README.md) for additional details.
 
-The repository is a **demo/portfolio BI system built around synthetic CRM data**.
+## Limitations and next steps
 
-- No real customer or confidential CRM data is included.
-- The public Streamlit demo does not implement application authentication because the exposed dataset is synthetic.
-- Streamlit CORS/XSRF protections are not disabled.
-- Dynamic values inserted into custom HTML are escaped.
-- `.streamlit/secrets.toml` is excluded from Git.
-- Missing or invalid data files are converted into user-facing errors rather than exposing raw tracebacks.
+The forecasting method is a transparent baseline, not a production forecasting service. Useful next extensions include:
 
-If this project is connected to real CRM data, it should be placed behind a proper authentication/access-control layer (for example an authenticated reverse proxy or organization platform) rather than relying on a simple password inside the Streamlit script.
+- Database and REST API integration
+- Time-series model comparison and backtesting
+- Authenticated deployment for real organizational data
+- CI checks for tests, formatting, linting, and translation parity
+- Real-time data ingestion
+- Additional explainability and data-drift monitoring
 
-# Future Improvements
+> **Metric note:** `churned_order_rate_pct` is the percentage of order records labelled `Churned`; it is not a customer-level subscription churn metric.
 
-Possible future extensions include:
+## Author
 
-- Database integration
-- REST API
-- Authenticated production deployment for real CRM data
-- PDF report generation
-- More advanced forecasting models
-- CI checks for tests, translation parity, formatting, and linting
-- Real-time CRM integration
+**Salsabeel Alfayoumi**  
+Computer Engineer focused on Python, applied AI, data analysis, and intelligent systems.
 
----
-
-# Internship
-
-This project was developed during my **Software Engineering Internship at KivaCRM**.
-
-The original internship roadmap is available in:
-
-```
-Internship_Build_Plan.md
-```
-
-The final implementation extends the original roadmap with several additional features, including:
-
-- Customer Segment Analysis
-- Revenue Forecasting
-- Excel Report Export
-- Bilingual Reporting (English & Turkish)
-- Data Validation Module
-- Enhanced Dashboard Design
-- Interactive Plotly Visualizations
-
----
-
-# Author
-
-**Salsabeel Alfayoumi**
-
-Computer Engineer
-
-Software Engineering • Python • Data Analysis • Business Intelligence • Decision Support Systems
-
-## Tests
-
-```bash
-pip install -r requirements.txt
-python -m pytest
-```
-
-
-> **Metric note:** `churned_order_rate_pct` is the percentage of order records labelled `Churned`. It is not a customer-level subscription churn metric.
+[Portfolio](https://salfayoumi.github.io/) · [GitHub profile](https://github.com/salfayoumi)
